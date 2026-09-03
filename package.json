@@ -3,9 +3,16 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=22.12"
+	},
 	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
+		"dev": "run-p dev:web dev:realtime",
+		"dev:web": "vite dev --port 5173",
+		"dev:realtime": "wrangler dev -c workers/realtime/wrangler.jsonc --port 8787",
+		"dev:reset": "node -e \"require('node:fs').rmSync('.wrangler/state',{recursive:true,force:true})\"",
+		"build": "vite build && pnpm build:realtime",
+		"build:realtime": "tsc -p workers/realtime/tsconfig.json --noEmit",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -15,17 +22,21 @@
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run && npm run test:e2e",
 		"test:e2e": "playwright install && playwright test",
-		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate",
+		"db:migrate:local": "wrangler d1 migrations apply emerald-wani-db --local",
+		"db:migrate:stg": "wrangler d1 migrations apply emerald-wani-db-stg --remote",
 		"db:studio": "drizzle-kit studio",
+		"cf-typegen": "wrangler types && wrangler types -c workers/realtime/wrangler.jsonc workers/realtime/worker-configuration.d.ts",
+		"deploy:web": "vite build && wrangler deploy",
+		"deploy:realtime": "wrangler deploy -c workers/realtime/wrangler.jsonc",
 		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes"
 	},
 	"devDependencies": {
+		"@cloudflare/workers-types": "^5.20260903.1",
 		"@eslint/js": "^10.0.1",
 		"@inlang/paraglide-js": "^2.25.0",
 		"@playwright/test": "^1.62.1",
-		"@sveltejs/adapter-auto": "^7.0.1",
+		"@sveltejs/adapter-cloudflare": "^7.2.9",
 		"@sveltejs/kit": "^2.70.3",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"@tailwindcss/typography": "^0.5.20",
@@ -40,6 +51,7 @@
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.23.0",
 		"globals": "^17.12.0",
+		"npm-run-all2": "^9.0.3",
 		"playwright": "^1.62.1",
 		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^4.1.1",
@@ -49,8 +61,10 @@
 		"tailwindcss": "^4.3.3",
 		"typescript": "^7.0.2",
 		"typescript-eslint": "^8.69.0",
+		"valibot": "^1.4.2",
 		"vite": "^8.2.2",
 		"vitest": "^4.1.11",
-		"vitest-browser-svelte": "^3.0.0"
+		"vitest-browser-svelte": "^3.0.0",
+		"wrangler": "^4.128.0"
 	}
 }

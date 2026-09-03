@@ -37,4 +37,3 @@
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [Cloudflare Access（Zero Trust）](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/)
 - [R2 の料金と無料枠](https://developers.cloudflare.com/r2/pricing/)
-

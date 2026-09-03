@@ -1,0 +1,23 @@
+# ローカル開発用のシークレット。このファイルをコピーして `.dev.vars` を作る。
+#
+#   cp .dev.vars.example .dev.vars
+#
+# `.dev.vars` は .gitignore 対象。**絶対にコミットしないこと。**
+# ステージング / 本番へは `wrangler secret put <NAME> --env <env>` で投入する。
+# 台帳とローテーション手順は doc/designs/13-secrets-lifecycle.md を参照。
+#
+# 値の生成:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+#
+# 注意: ローカルの値は本番と必ず別にする。本番の値をここへコピーしない。
+
+# S-02: better-auth のセッション・トークン署名
+BETTER_AUTH_SECRET=""
+
+# S-01: WebSocket 接続チケットの HMAC 署名（フェーズ3で使用）
+# kid 付きで複数世代を保持できるようにする（_V1, _V2 ...）
+WS_TICKET_SECRET_V1=""
+
+# S-03: Turnstile のサーバ側検証（フェーズ5で使用）
+# 未設定のあいだ、ゲスト発行の Bot 検証はスキップされる（開発用フォールバック）
+TURNSTILE_SECRET_KEY=""

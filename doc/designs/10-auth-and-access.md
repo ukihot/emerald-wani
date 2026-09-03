@@ -4,18 +4,17 @@
 
 本書の前提として、**「すぐ遊べること」もセキュリティ要件である**（[設計原則](./01-principles.md) 3節）。ゲストは「検証の緩い経路」ではなく「匿名の認証済みユーザー」として扱い、本登録ユーザーと同じ認可・不正対策・監査を適用する。
 
-
 ### 10.1 認証方式（D-12）
 
 better-auth に以下のプラグインを構成する（すべて導入済みパッケージ 1.7.2 に同梱されていることを確認済み）。
 
-| プラグイン | 用途 | 対応する企画書要件 |
-|---|---|---|
-| `anonymous` | ゲストプレイ。URLアクセスだけで即対戦 | 4章「インストール不要」/ 28.1 |
-| `admin` | 役割、アカウント停止、セッション失効、ユーザ検索 | 17 / 24 |
-| `twoFactor` | 管理者の MFA 必須化 | 16 / 24 |
-| `captcha` (cloudflare-turnstile) | 登録・ログイン・パスワード再設定の Bot 対策 | 16 |
-| `haveibeenpwned` | 流出済みパスワードの拒否 | 16 |
+| プラグイン                       | 用途                                             | 対応要件        |
+| -------------------------------- | ------------------------------------------------ | --------------- |
+| `anonymous`                      | ゲストプレイ。「すぐ遊ぶ」から即対戦             | 要件定義 8      |
+| `admin`                          | 役割、アカウント停止、セッション失効、ユーザ検索 | 要件定義 8 / 12 |
+| `twoFactor`                      | 管理者の MFA 必須化                              | 要件定義 8 / 12 |
+| `captcha` (cloudflare-turnstile) | 登録・ログイン・パスワード再設定の Bot 対策      | 要件定義 12     |
+| `haveibeenpwned`                 | 流出済みパスワードの拒否                         | 要件定義 12     |
 
 **ゲスト → 本登録の昇格フロー（訂正版）**
 
@@ -26,15 +25,15 @@ better-auth に以下のプラグインを構成する（すべて導入済み�
   → 「すぐ遊ぶ」ボタン押下
   → Turnstile 検証 → POST /api/auth/sign-in/anonymous（ここで初めてゲストユーザが作られる）
   → isAnonymous = true、表示名は自動生成
-  → 初期カード配布・デッキ1個自動生成 → すぐ対戦可能
+  → 両者共通の8体を使って、すぐ対戦可能
   → 「アカウントを作成」でメール+パスワード登録
-  → better-auth のアカウント連携処理で所有カード・デッキ・戦績を引き継ぎ
+  → better-auth のアカウント連携処理で戦績・設定を引き継ぎ
 ```
 
-**アカウント連携時のデータ移行（P1修正）**: better-auth の `anonymous` プラグインは既定で、匿名アカウントを本アカウントへリンクした後に **匿名ユーザ行を削除**する（[Anonymous plugin](https://better-auth.com/docs/plugins/anonymous)）。当初案はこの削除タイミングとカード・デッキ移行の順序を明記しておらず、削除が先に走れば所有物を失う恐れがあった。以下のいずれかで対応する。
+**アカウント連携時のデータ移行（P1修正）**: better-auth の `anonymous` プラグインは既定で、匿名アカウントを本アカウントへリンクした後に **匿名ユーザ行を削除**する（[Anonymous plugin](https://better-auth.com/docs/plugins/anonymous)）。匿名ユーザーに紐づく戦績・設定を失わないよう、削除前に移行する。
 
-- **採用方針**: `onLinkAccount` コールバック内で、匿名ユーザ削除が実行される**前**に `user_card` / `deck` / `deck_card` / `match_player` の `user_id` を新アカウントの `id` へ D1 トランザクションで一括更新する。プラグインが削除を行うのはこの更新が成功した後のみ許可する（コールバックが例外を投げれば削除も中断される想定で実装し、実際の better-auth のフック順序をフェーズ4の実装時に確認して固定する）。
-- 移行処理は `requestId` による冪等化を行い、二重呼び出しでも二重付与・重複行が発生しないようにする（`ON CONFLICT DO NOTHING` 相当）。
+- **採用方針**: `onLinkAccount` コールバック内で、匿名ユーザ削除が実行される**前**に `player_profile` と `match_player.user_id` を新アカウントへ D1 トランザクションで移行する。移行成功後だけ匿名ユーザーの削除を許可する。
+- 移行処理は `requestId` で冪等化し、二重呼び出しでも重複行が発生しないようにする。
 
 **メール配送の運用（P1追記）**: better-auth はメール送信機能そのものを提供せず、確認メール・パスワード再設定メールの実配送はアプリ側で用意する（[Better Auth Email](https://better-auth.com/docs/concepts/email)）。MVP では **Cloudflare Email Workers ではなく外部トランザクションメールサービス**（例: Resend や Postmark 等、Workers から HTTP API で呼べるもの）を1つ選定し、以下を確定させる。
 
@@ -45,7 +44,7 @@ better-auth に以下のプラグインを構成する（すべて導入済み�
 
 この選定と設定はフェーズ4の実装事項とし、詳細は別途 `doc/email.md` 等で定める。
 
-**ゲストに課す制限**（企画書 33「Botによる大量アクセス」への対応）
+**ゲストに課す制限**
 
 - ゲスト発行（＝「すぐ遊ぶ」ボタンの押下）に Turnstile を必須とする。
 - ランダムマッチ・フレンド対戦は可。対戦履歴の保存は本登録後に30日。
@@ -56,15 +55,15 @@ better-auth に以下のプラグインを構成する（すべて導入済み�
 
 次は「制限」として設けない。設ければ[設計原則](./01-principles.md) 3.1 に反する。
 
-| 項目 | 扱い |
-|---|---|
-| 対戦ルール | 本登録ユーザーと完全に同一 |
-| マッチングプール | 同一。ゲスト専用の隔離プールを作らない |
-| 使用できるカード | 同一（初期24種を全員に配布） |
-| 対戦上の有利・不利 | 一切設けない |
-| 認可検証の厳格さ | 同一。`auth: 'anonymous'` は「認証済みの匿名ユーザー」を意味し、検証を省略しない |
-| 監査対象 | 同一。ゲストの行動も `security_event` に記録する |
-| 通報・被通報 | 同一（[セキュリティ実装対策](./11-security-controls.md) 11.8.4） |
+| 項目               | 扱い                                                                             |
+| ------------------ | -------------------------------------------------------------------------------- |
+| 対戦ルール         | 本登録ユーザーと完全に同一                                                       |
+| マッチングプール   | 同一。ゲスト専用の隔離プールを作らない                                           |
+| 使用するワニ       | 同一の8体。所有・配布・解放要素は設けない                                        |
+| 対戦上の有利・不利 | 一切設けない                                                                     |
+| 認可検証の厳格さ   | 同一。`auth: 'anonymous'` は「認証済みの匿名ユーザー」を意味し、検証を省略しない |
+| 監査対象           | 同一。ゲストの行動も `security_event` に記録する                                 |
+| 通報・被通報       | 同一（[セキュリティ実装対策](./11-security-controls.md) 11.8.4）                 |
 
 将来ランク戦を導入する場合も**ゲストに内部 MMR を持たせて同じプールで対戦させる**。本登録を条件としてよいのはランキング掲載・シーズン報酬・長期的な戦績保存に限る。
 
@@ -84,18 +83,18 @@ better-auth に以下のプラグインを構成する（すべて導入済み�
 ```ts
 // src/lib/server/api/guard.ts のイメージ
 export const handler = defineApi({
-  auth: 'user',                       // 'public' | 'anonymous' | 'user' | 'admin'
-  rateLimit: { key: 'user', binding: 'RL_DECK_WRITE' },
-  body: DeckUpdateSchema,             // Valibot strictObject
-  audit: 'deck.update',
-  async run({ user, body, params, db }) {
-    // 所有者チェックを WHERE 句に必ず含める（後段フィルタにしない）
-    const found = await db.query.deck.findFirst({
-      where: and(eq(deck.id, params.id), eq(deck.userId, user.id), isNull(deck.deletedAt))
-    });
-    if (!found) return notFound();     // 他人のデッキは「存在しない」として返す
-    // ...
-  }
+	auth: 'user', // 'public' | 'anonymous' | 'user' | 'admin'
+	rateLimit: { key: 'user', binding: 'RL_API_READ' },
+	body: MatchReadSchema, // Valibot strictObject
+	audit: 'match.read',
+	async run({ user, body, params, db }) {
+		// 所有者チェックを WHERE 句に必ず含める（後段フィルタにしない）
+		const found = await db.query.matchPlayer.findFirst({
+			where: and(eq(matchPlayer.matchId, params.id), eq(matchPlayer.userId, user.id))
+		});
+		if (!found) return notFound(); // 他人の試合は「存在しない」として返す
+		// ...
+	}
 });
 ```
 
@@ -110,8 +109,8 @@ export const handler = defineApi({
 
 - 役割: `user` / `moderator` / `admin`
 - 管理画面は **MFA 必須**。未設定の管理者は管理画面に入れない。
-- 管理画面（本番環境）へのアクセスは、アプリ層の認可に加えて **Cloudflare Access（Zero Trust）によるネットワーク層の制限を必須**とする（推奨ではなく必須。企画書 20「管理画面へのアクセスを追加で制限する」）。Access のポリシー（許可ID・グループ）は運営メンバーの入退に応じて即時更新する運用手順を定める。ステージング環境も同様に Access で保護する。ローカル開発のみ Access を適用しない。
-- 管理者の全操作は `admin_audit` に記録する。ログ閲覧自体も監査対象とする（企画書 23.3）。
+- 管理画面（本番環境）へのアクセスは、アプリ層の認可に加えて **Cloudflare Access（Zero Trust）によるネットワーク層の制限を必須**とする。Access のポリシー（許可ID・グループ）は運営メンバーの入退に応じて即時更新する。ステージング環境も同様に保護し、ローカル開発だけは適用しない。
+- 管理者の全操作は `admin_audit` に記録し、ログ閲覧自体も監査対象とする。
 - 管理者は「対戦イベント再生」でリプレイを閲覧できるが、**進行中の試合の秘匿情報は見られない**（終局後のみ）。
 
 ---

@@ -40,7 +40,7 @@ server: {
 - リセット: `pnpm dev:reset` = `.wrangler/state` の削除
 - SQLite の直接確認: `.wrangler/state/v3/d1/` 配下のファイルを任意の SQLite クライアントで開く
 
-**本番データをローカルへコピーしない**（企画書 22.2）。シードは `scripts/seed.sql` を用意し、`wrangler d1 execute ... --local --file scripts/seed.sql` で投入する。
+**本番データをローカルへコピーしない。** 開発用データは `scripts/seed.sql` を用意し、`wrangler d1 execute ... --local --file scripts/seed.sql` で投入する。
 
 ### 5.4 D1 マイグレーション
 
@@ -66,7 +66,7 @@ TURNSTILE_SECRET_KEY="..."
 ```
 
 - 公開して良い値（`PUBLIC_TURNSTILE_SITE_KEY` 等）のみ `wrangler.jsonc` の `vars` に置く。
-- ステージング／本番は `wrangler secret put <NAME> --env <env>` で投入する。ソースにも `wrangler.jsonc` にも秘密情報を書かない（企画書 22.2）。
+- ステージング／本番は `wrangler secret put <NAME> --env <env>` で投入する。ソースにも `wrangler.jsonc` にも秘密情報を書かない。
 - **作業項目**: 現在リポジトリ直下に `.env` が存在する。`.gitignore` 対象ではあるが Workers 実行時には読まれないため、`.dev.vars` へ移行し `.env.example` を `.dev.vars.example` に置き換える。`.gitignore` に `.dev.vars` を追加する。
 
 ### 5.6 型生成
@@ -80,32 +80,32 @@ pnpm cf-typegen   # wrangler types -> worker-configuration.d.ts
 ```ts
 // src/app.d.ts（追記イメージ）
 declare global {
-  namespace App {
-    interface Platform {
-      env: Env;
-      cf: CfProperties;
-      ctx: ExecutionContext;
-    }
-  }
+	namespace App {
+		interface Platform {
+			env: Env;
+			cf: CfProperties;
+			ctx: ExecutionContext;
+		}
+	}
 }
 ```
 
 ### 5.7 npm scripts（確定案）
 
-| script | 内容 |
-|---|---|
-| `dev` | web + realtime 同時起動 |
-| `dev:web` / `dev:realtime` | 個別起動 |
-| `dev:reset` | ローカル状態の初期化 |
-| `build` | `vite build`（web）+ realtime の型チェック |
-| `check` | `svelte-check` |
-| `lint` / `format` | ESLint + Prettier |
-| `test:unit` | Vitest（node / browser） |
-| `test:workers` | Vitest（`@cloudflare/vitest-pool-workers`、DO テスト） |
-| `test:e2e` | Playwright |
-| `db:generate` / `db:migrate:local` | マイグレーション |
-| `cf-typegen` | `wrangler types` |
-| `deploy:web` / `deploy:realtime` | `wrangler deploy`（環境指定） |
+| script                             | 内容                                                   |
+| ---------------------------------- | ------------------------------------------------------ |
+| `dev`                              | web + realtime 同時起動                                |
+| `dev:web` / `dev:realtime`         | 個別起動                                               |
+| `dev:reset`                        | ローカル状態の初期化                                   |
+| `build`                            | `vite build`（web）+ realtime の型チェック             |
+| `check`                            | `svelte-check`                                         |
+| `lint` / `format`                  | ESLint + Prettier                                      |
+| `test:unit`                        | Vitest（node / browser）                               |
+| `test:workers`                     | Vitest（`@cloudflare/vitest-pool-workers`、DO テスト） |
+| `test:e2e`                         | Playwright                                             |
+| `db:generate` / `db:migrate:local` | マイグレーション                                       |
+| `cf-typegen`                       | `wrangler types`                                       |
+| `deploy:web` / `deploy:realtime`   | `wrangler deploy`（環境指定）                          |
 
 ---
 
@@ -114,21 +114,21 @@ declare global {
 ```
 emerald-wani/
 ├─ doc/
-│  ├─ requirements.md            企画書
-│  ├─ design.md                  本書
-│  └─ cards.md                   カードマスタ仕様（詳細設計・別途）
+│  ├─ requirements.md            要件定義
+│  ├─ designs/                   基本設計（トピック別）
+│  └─ board.md                   盤面・生成仕様（詳細設計・別途）
 ├─ src/                          emerald-wani-web（SvelteKit）
 │  ├─ routes/
 │  │  ├─ +layout.svelte
 │  │  ├─ +page.svelte                     トップ
 │  │  ├─ (auth)/…                          登録・ログイン
-│  │  ├─ (app)/…                           ホーム・デッキ・図鑑・対戦・履歴・設定
+│  │  ├─ (app)/…                           ホーム・対戦・履歴・設定
 │  │  ├─ (admin)/admin/…                   運営管理（経路分離）
 │  │  └─ api/v1/…/+server.ts               REST API
 │  ├─ lib/
 │  │  ├─ game/                  ★ルールエンジン（純粋TS・CF非依存）
-│  │  │  ├─ types.ts            MatchState / Lane / CardInstance …
-│  │  │  ├─ rng.ts              決定論CSPRNG（HMAC-SHA-256カウンタ）+ Fisher–Yates
+│  │  │  ├─ types.ts            MatchState / Board / Crocodile …
+│  │  │  ├─ board.ts            seedからの決定論的盤面生成と検証
 │  │  │  ├─ commands.ts         Command 定義
 │  │  │  ├─ events.ts           Event 定義
 │  │  │  ├─ reducer.ts          applyCommand（唯一の状態遷移点）
@@ -138,10 +138,11 @@ emerald-wani/
 │  │  │  │  ├─ registry.ts      ruleVersion -> engine の解決
 │  │  │  │  ├─ v2026-09-0/      各版数の reducer スナップショット
 │  │  │  │  └─ …
+│  │  │  ├─ maps/               ★ MAP_VERSION ごとの盤面生成器
 │  │  │  ├─ ai/                 CPU 思考（純粋関数）
-│  │  │  └─ cards/              カードマスタ（データ + 効果ハンドラ）
+│  │  │  └─ crocodiles/         8種のワニ定義と行動判定
 │  │  ├─ protocol/              Valibot スキーマ（REST/WS、クライアント共有）
-│  │  ├─ components/            カード・レーン・手札・演出
+│  │  ├─ components/            盤面・マス・ワニ・捕虜・演出
 │  │  ├─ client/                UIストア・WSクライアント・再接続制御
 │  │  └─ server/
 │  │     ├─ auth.ts             better-auth 構成

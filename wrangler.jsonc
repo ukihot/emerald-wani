@@ -1,0 +1,67 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+
+	// emerald-wani-web: 画面配信(SSR) + REST API + 認証・セッション
+	// 責務は doc/designs/02-architecture.md 3.3 を参照。
+	"name": "emerald-wani-web",
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"compatibility_date": "2026-09-03",
+
+	// nodejs_als: SvelteKit が AsyncLocalStorage を利用するため adapter-cloudflare が要求する。
+	"compatibility_flags": ["nodejs_als"],
+
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+
+	"observability": {
+		"enabled": true
+	},
+
+	// D1: ユーザ / デッキ / 戦績 / 監査（doc/designs/08-data-model.md）
+	// database_id はローカル開発用のプレースホルダ。実IDは `wrangler d1 create` 後に差し替える。
+	// realtime Worker 側と同じ値を使うこと（同じローカル SQLite を共有するため）。
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "emerald-wani-db",
+			"database_id": "00000000-0000-4000-8000-000000000001",
+			"migrations_dir": "drizzle"
+		}
+	],
+
+	// Durable Objects は realtime Worker 側で定義し、ここからは script_name で参照する。
+	// この分割理由は doc/designs/02-architecture.md 3.2（getPlatformProxy の制約）を参照。
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "MATCH_ROOM",
+				"class_name": "MatchRoom",
+				"script_name": "emerald-wani-realtime"
+			},
+			{
+				"name": "MATCH_QUEUE",
+				"class_name": "MatchQueue",
+				"script_name": "emerald-wani-realtime"
+			},
+			{
+				"name": "GUEST_GUARD",
+				"class_name": "GuestIssuanceGuard",
+				"script_name": "emerald-wani-realtime"
+			}
+		]
+	},
+
+	"vars": {
+		// 公開してよい値のみをここに置く。シークレットは .dev.vars / wrangler secret へ。
+		// （doc/designs/04-dev-environment.md 5.5 / doc/designs/13-secrets-lifecycle.md）
+		"ORIGIN": "http://localhost:5173"
+	}
+
+	// 以下はフェーズ進行に合わせて追加する（未使用のバインディングは意図的に置かない）:
+	//   - r2_buckets REPLAYS       : フェーズ3（リプレイ保存）
+	//   - queues.producers         : フェーズ3（match-events）
+	//   - ratelimit バインディング  : フェーズ5（doc/designs/11-security-controls.md 11.4）
+	//   - triggers.crons           : フェーズ4（archive 再照合）
+}

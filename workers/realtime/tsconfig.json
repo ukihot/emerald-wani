@@ -1,0 +1,23 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2022"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"types": ["./worker-configuration.d.ts"],
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		// 依存方向は realtime -> src/lib の一方向のみ。
+		// src/lib/game から workers/ を参照してはならない（doc/designs/04-dev-environment.md）。
+		"paths": {
+			"$game/*": ["../../src/lib/game/*"],
+			"$protocol/*": ["../../src/lib/protocol/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "worker-configuration.d.ts"]
+}

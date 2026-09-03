@@ -1,0 +1,47 @@
+{
+	"$schema": "../../node_modules/wrangler/config-schema.json",
+
+	// emerald-wani-realtime: WebSocket の Upgrade 中継 + Durable Objects の実装
+	// 責務は doc/designs/02-architecture.md 3.3 / 3.5 を参照。
+	// このワーカーはチケットの検証を行わない（検証主体は MatchRoom DO 自身）。
+	"name": "emerald-wani-realtime",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-03",
+
+	"observability": {
+		"enabled": true
+	},
+
+	// web Worker と同じ D1 を参照する。database_id は必ず web 側と一致させること
+	// （ローカルでは同じ SQLite ファイルを共有するため）。
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "emerald-wani-db",
+			"database_id": "00000000-0000-4000-8000-000000000001",
+			"migrations_dir": "../../drizzle"
+		}
+	],
+
+	// DO の実体はこのワーカーが持つ（doc/designs/07-durable-objects.md 9.1）。
+	"durable_objects": {
+		"bindings": [
+			{ "name": "MATCH_ROOM", "class_name": "MatchRoom" },
+			{ "name": "MATCH_QUEUE", "class_name": "MatchQueue" },
+			{ "name": "GUEST_GUARD", "class_name": "GuestIssuanceGuard" }
+		]
+	},
+
+	// SQLite ストレージバックエンドを明示宣言する（新方式の exports）。
+	"exports": {
+		"MatchRoom": { "type": "durable-object", "storage": "sqlite" },
+		"MatchQueue": { "type": "durable-object", "storage": "sqlite" },
+		"GuestIssuanceGuard": { "type": "durable-object", "storage": "sqlite" }
+	},
+
+	"vars": {
+		// WebSocket の Origin 検証に使う許可リスト（カンマ区切り）。
+		// 本番・ステージングでは実ドメインへ差し替える。
+		"ALLOWED_WS_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173"
+	}
+}

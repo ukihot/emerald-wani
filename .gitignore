@@ -18,6 +18,15 @@ Thumbs.db
 !.env.example
 !.env.test
 
+# Workers のローカルシークレット（doc/designs/13-secrets-lifecycle.md）
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# wrangler types の生成物
+worker-configuration.d.ts
+workers/*/worker-configuration.d.ts
+
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*

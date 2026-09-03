@@ -2,14 +2,13 @@
 
 > [設計ドキュメント索引](./README.md)
 
-
 ### 9.1 名前空間
 
-| クラス | バインディング | ID の決め方 | 個数 |
-|---|---|---|---|
-| `MatchRoom` | `MATCH_ROOM` | `idFromName(matchId)` | 1試合につき1つ |
-| `MatchQueue` | `MATCH_QUEUE` | `idFromName("<mode>:<bucket>")` | モード×レート帯につき1つ |
-| `GuestIssuanceGuard` | `GUEST_GUARD` | `idFromName(ipHash)` | IPハッシュにつき1つ（11.4 / D-29） |
+| クラス               | バインディング | ID の決め方                     | 個数                               |
+| -------------------- | -------------- | ------------------------------- | ---------------------------------- |
+| `MatchRoom`          | `MATCH_ROOM`   | `idFromName(matchId)`           | 1試合につき1つ                     |
+| `MatchQueue`         | `MATCH_QUEUE`  | `idFromName("<mode>:<bucket>")` | モード×レート帯につき1つ           |
+| `GuestIssuanceGuard` | `GUEST_GUARD`  | `idFromName(ipHash)`            | IPハッシュにつき1つ（11.4 / D-29） |
 
 `GuestIssuanceGuard` はロジック上は web Worker の関心事だが、3.2 で述べた `getPlatformProxy` の制約（DO バインディングには `script_name` が必須）はすべての DO に一様に適用されるため、**この DO も realtime Worker に定義**し、web 側からは他の DO と同じく `script_name` 付きで参照する。
 
@@ -17,18 +16,18 @@
 
 ```jsonc
 {
-  "durable_objects": {
-    "bindings": [
-      { "name": "MATCH_ROOM",  "class_name": "MatchRoom" },
-      { "name": "MATCH_QUEUE", "class_name": "MatchQueue" },
-      { "name": "GUEST_GUARD", "class_name": "GuestIssuanceGuard" }
-    ]
-  },
-  "exports": {
-    "MatchRoom":           { "type": "durable-object", "storage": "sqlite" },
-    "MatchQueue":           { "type": "durable-object", "storage": "sqlite" },
-    "GuestIssuanceGuard":   { "type": "durable-object", "storage": "sqlite" }
-  }
+	"durable_objects": {
+		"bindings": [
+			{ "name": "MATCH_ROOM", "class_name": "MatchRoom" },
+			{ "name": "MATCH_QUEUE", "class_name": "MatchQueue" },
+			{ "name": "GUEST_GUARD", "class_name": "GuestIssuanceGuard" }
+		]
+	},
+	"exports": {
+		"MatchRoom": { "type": "durable-object", "storage": "sqlite" },
+		"MatchQueue": { "type": "durable-object", "storage": "sqlite" },
+		"GuestIssuanceGuard": { "type": "durable-object", "storage": "sqlite" }
+	}
 }
 ```
 
@@ -36,13 +35,17 @@ web 側は同じ名前で `script_name` 付きバインディングを持つ。
 
 ```jsonc
 {
-  "durable_objects": {
-    "bindings": [
-      { "name": "MATCH_ROOM",  "class_name": "MatchRoom",           "script_name": "emerald-wani-realtime" },
-      { "name": "MATCH_QUEUE", "class_name": "MatchQueue",          "script_name": "emerald-wani-realtime" },
-      { "name": "GUEST_GUARD", "class_name": "GuestIssuanceGuard",  "script_name": "emerald-wani-realtime" }
-    ]
-  }
+	"durable_objects": {
+		"bindings": [
+			{ "name": "MATCH_ROOM", "class_name": "MatchRoom", "script_name": "emerald-wani-realtime" },
+			{ "name": "MATCH_QUEUE", "class_name": "MatchQueue", "script_name": "emerald-wani-realtime" },
+			{
+				"name": "GUEST_GUARD",
+				"class_name": "GuestIssuanceGuard",
+				"script_name": "emerald-wani-realtime"
+			}
+		]
+	}
 }
 ```
 
@@ -59,10 +62,11 @@ CREATE TABLE match_state (
   match_id      TEXT NOT NULL,
   mode          TEXT NOT NULL,            -- ranked_random | friend | cpu
   rule_version  TEXT NOT NULL,
-  seed          BLOB NOT NULL,            -- クライアントへは絶対に送らない
-  status        TEXT NOT NULL,            -- waiting | mulligan | playing | finished | void
+  map_version   TEXT NOT NULL,
+  seed          BLOB NOT NULL,            -- 公開時期はルール詳細で確定する
+  status        TEXT NOT NULL,            -- waiting | deployment | playing | finished | void
   rev           INTEGER NOT NULL,         -- 状態リビジョン（単調増加）
-  turn_no       INTEGER NOT NULL,
+  round_no      INTEGER NOT NULL,
   active_seat   INTEGER NOT NULL,
   state_json    TEXT NOT NULL,            -- MatchState のスナップショット
   started_at    INTEGER,
@@ -75,7 +79,6 @@ CREATE TABLE match_state (
 CREATE TABLE seat (
   seat           INTEGER PRIMARY KEY,     -- 0 | 1
   user_id        TEXT NOT NULL,
-  deck_snapshot  TEXT NOT NULL,           -- 開始時のデッキ内容（後からの改変不可）
   connected      INTEGER NOT NULL DEFAULT 0,
   grace_until    INTEGER,                 -- 切断猶予の期限
   timeout_streak INTEGER NOT NULL DEFAULT 0
@@ -87,7 +90,6 @@ CREATE TABLE command_log (
   ts           INTEGER NOT NULL,          -- ctx.now に注入した値
   actor_seat   INTEGER,                   -- NULL = システム発行
   command_json TEXT NOT NULL,
-  rng_counter  INTEGER NOT NULL,          -- このCommand処理開始時点のRNGカウンタ（9.5）
   rule_version TEXT NOT NULL
 );
 
@@ -99,7 +101,7 @@ CREATE TABLE event_log (
   PRIMARY KEY (rev, event_seq)
 );
 
--- 二重実行対策（企画書 18.2）
+-- 二重実行対策
 CREATE TABLE action_log (
   action_id   TEXT PRIMARY KEY,           -- クライアント生成 UUIDv7
   seat        INTEGER NOT NULL,
@@ -126,7 +128,7 @@ CREATE TABLE archive_state (
 );
 ```
 
-**なぜ Command を原本とし、Event を派生物とするのか（D-26 の補足）**: `applyCommand` の再現に必要なのは Command 列（と `ctx.now`、RNGカウンタ）だけであり、Event はその実行結果に過ぎない。Event だけを保存してシードから状態を再現しようとすると、Event に含まれない中間判断（どのトリガがどの順で解決されたか等）を失う。`command_log` を正本、`event_log` をクライアント配信・プレイヤー向けリプレイ専用の派生インデックスと位置づけることで、9.5 の決定論的再現性と 13.3 のリプレイが同じ土台に立つ。
+**なぜ Command を原本とし、Event を派生物とするのか（D-26 の補足）**: `applyCommand` の再現に必要なのは初期条件、Command 列、`ctx.now` であり、Event はその実行結果に過ぎない。`command_log` を正本、`event_log` をクライアント配信とリプレイ表示用の派生インデックスとする。
 
 **行動処理シーケンス（不正対策の中核）** — 接続確立（3.5）が完了し、`authPending` が解除された後の定常状態
 
@@ -140,8 +142,8 @@ sequenceDiagram
     DO->>DO: 1 メッセージサイズ / 頻度チェック
     DO->>DO: 2 Valibot で厳格検証（未定義キー拒否）
     DO->>DO: 3 actionId 既存? → action_log の記録済み結果を返して終了
-    DO->>DO: 4 status == 'playing' か
-    DO->>DO: 5 送信者が active_seat か
+    DO->>DO: 4 action が現在の status で許可されるか
+    DO->>DO: 5 playing 中なら送信者が active_seat か
     DO->>DO: 6 baseRev == rev か（違えば E_STALE_REV）
     DO->>E: applyCommand(state, cmd, {rng, now, ruleVersion})
     E-->>DO: {state, events[]} または RuleError
@@ -152,7 +154,7 @@ sequenceDiagram
 
 （接続確立時の `hello` 検証シーケンスは 3.5 を参照。realtime Worker はこの図に登場しない — 行動処理はすべて DO 内で完結する。）
 
-`ack` と `events` を別フレームに分けていた当初案は、確定した rev と表示状態がクライアント側でずれる余地があったため、**行動者向けは `actionResult` 1本に統合**した（13.2 で詳述）。
+`ack` と `events` を別フレームに分けていた当初案は、確定した rev と表示状態がクライアント側でずれる余地があったため、**行動者向けは `actionResult` 1本に統合**した（[API とプロトコル](./09-api-protocol.md)）。
 
 手順3〜7の間に `await` を挟まない（DO SQLite の同期 API を使う）ことで、**行動の直列性と原子性を保証**する。初期化のみ `ctx.blockConcurrencyWhile()` を使う。
 
@@ -167,23 +169,23 @@ sequenceDiagram
 
 **alarm による時間管理**
 
-`alarm()` は単一のスケジューラとして使い、期限テーブル（ターン期限 / 切断猶予期限 / 試合上限）のうち最も早いものをセットする。発火時は該当するシステム Command を `applyCommand` に流す。
+`alarm()` は単一のスケジューラとして使い、期限テーブル（布陣期限 / ターン期限 / 終局後処理）のうち最も早いものをセットする。発火時は該当するシステム Command を `applyCommand` に流す。
 
-| 期限 | 値 | 発火時の処理 |
-|---|---|---|
-| ターン期限 | 90秒 | `sys.turnTimeout` → 自動 `endTurn`。3連続で敗北 |
-| マリガン期限 | 30秒 | 引き直しなしで確定 |
-| 切断猶予 | 60秒 | 期限内に再接続がなければ相手に通知、さらに60秒で `disconnect` 敗北 |
-| 試合上限 | 20分 / 25ターン | HP比較で決着 |
-| 終局後の永続化開始 | 終局直後（即時） | `archive_state.status='pending'` にし、Queue へ `{ matchId }` を送信。WS はここでは閉じない（結果閲覧のため一定時間維持） |
-| 終局後の掃除 | `archive_state.status='archived'` を確認できた後、かつ終局から最短10分 | WS を閉じ、DO の SQLite を削除する。`archived` を確認できない場合は削除せず、9.4 の再試行に委ねる（下記参照） |
+| 期限               | 値                                                                     | 発火時の処理                                                                                                              |
+| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| ターン期限         | 30秒                                                                   | `sys.turnTimeout` → 残り活力を失って自動終了。3連続で敗北                                                                 |
+| 布陣期限           | 45秒                                                                   | 最後の有効配置を確定し、未配置のワニを自動配置                                                                            |
+| クライアント切断   | 手番タイマーを停止しない                                               | 接続状態を相手へ通知。切断だけでは敗北にせず、通常の30秒タイムアウトと3ターン連続ルールを適用                             |
+| ラウンド上限       | 30ラウンド                                                             | 得点比較で決着。同点は引き分け                                                                                            |
+| 終局後の永続化開始 | 終局直後（即時）                                                       | `archive_state.status='pending'` にし、Queue へ `{ matchId }` を送信。WS はここでは閉じない（結果閲覧のため一定時間維持） |
+| 終局後の掃除       | `archive_state.status='archived'` を確認できた後、かつ終局から最短10分 | WS を閉じ、DO の SQLite を削除する。`archived` を確認できない場合は削除せず、9.4 の再試行に委ねる（下記参照）             |
 
 **再接続**
 
 1. クライアントは新しい WS チケットを REST で取得する。
 2. 接続後の `hello` フレームに `lastRev` を添える。
 3. DO は `lastRev` 以降のイベントを `event_log` から送る。差が大きい（例 200 rev 超）または `lastRev` が不明なら、射影済みの **完全スナップショット** を送る。
-4. 終局後の DO への接続は結果の閲覧のみ許可し、行動要求はすべて `E_MATCH_FINISHED` で拒否する（企画書 19）。
+4. 終局後の DO への接続は結果の閲覧のみ許可し、行動要求はすべて `E_MATCH_FINISHED` で拒否する。
 
 **終局後の永続化と削除のタイミング（D-27。P0-4 の修正）**
 
@@ -201,9 +203,7 @@ sequenceDiagram
     DO->>Q: send({ matchId })  ※IDのみ。ログ本体は送らない
     QC->>DO: fetch /internal/export?matchId=…（DOの内部限定エンドポイント）
     DO-->>QC: command_log 全件 + seat + 結果（ストリーミング応答）
-    QC->>R2: 運営用完全版を保存（seedを含む。9.5参照）
-    QC->>QC: 座席ごとに射影して再生成
-    QC->>R2: プレイヤー閲覧用の射影版（seat別、各2本）を保存
+    QC->>R2: 完全版リプレイを保存（seed、布陣、全Commandを含む）
     QC->>D1: match / match_player を UPSERT（matchIdを冪等キー）
     QC->>DO: fetch /internal/archive-complete
     DO->>DO: archive_state.status='archived'、archived_atを記録
@@ -211,12 +211,12 @@ sequenceDiagram
 ```
 
 - **Queue には `matchId` のみを送る。** ログ本体は consumer が DO の内部限定エクスポート API（`/internal/export`。realtime Worker のサービスバインディング経由でのみ到達可能とし、外部公開しない）から取得する。これにより 128 KB 制限を回避する。
-- **R2 は運営用完全版とプレイヤー閲覧用射影版を分けて保存する。** 「ヘッダ（シード）だけ除けばよい」という当初案は誤りで、Event 本体にも相手の手札IDなど秘匿情報が含まれ得るため、**座席ごとに射影し直したものを別ファイルとして保存**する（13.3で詳述）。
+- **R2 は終局後の完全版リプレイを1本保存する。** 布陣公開後は完全情報であり、終局後に座席別ファイルを分ける必要はない。布陣フェーズ中のライブ配信だけは座席別射影を必須とする。
 - **`archived` を確認できるまで DO の SQLite を削除しない。** consumer が失敗した場合は Cloudflare Queues の自動リトライに委ね、規定回数の失敗で DLQ へ送る。DLQ 滞留中も DO 側は `archive_state.status='failed'` のまま保持され続け、運営が手動で再送するまで削除されない。DO のデータ保持コストとのトレードオフとして、`failed` 状態が **72時間**を超えたら運営へアラートを送る。
 
 ### 9.3 CPU 練習戦
 
-CPU 戦も **同じ `MatchRoom` を使う**（`mode = 'cpu'`）。座席1を CPU とし、DO 内で `alarm` により CPU の手番を進める。ルールエンジンを共有するため、対人戦との挙動差が生まれない。CPU 思考は `src/lib/game/ai/` に純粋関数として置く（MVP は「使えるカードを順に出し、有利なトレードを選ぶ」程度のヒューリスティック）。
+CPU 戦も **同じ `MatchRoom` を使う**（`mode = 'cpu'`）。座席1を CPU とし、DO 内で `alarm` により布陣と手番を進める。CPU 思考は `src/lib/game/ai/` に純粋関数として置き、合法手生成、捕獲価値、巣までの距離、救出可能性を使うヒューリスティックから開始する。
 
 ### 9.4 MatchQueue とマッチング（D-21）
 
@@ -228,15 +228,15 @@ sequenceDiagram
     participant Q as MatchQueue DO
     participant R as MatchRoom DO
 
-    C1->>W: POST /api/v1/matchmaking/enqueue {deckId}
-    W->>W: 認証 / レート制限 / デッキ検証（30枚・停止カードなし）
-    W->>Q: fetch /enqueue {userId, deckSnapshot}
+    C1->>W: POST /api/v1/matchmaking/enqueue {requestId}
+    W->>W: 認証 / レート制限
+    W->>Q: fetch /enqueue {userId, requestId}
     Q->>Q: 待機列に追加、alarm(1s) をセット
     C2->>W: POST /api/v1/matchmaking/enqueue
     W->>Q: fetch /enqueue
     Q->>Q: alarm 発火 → 2名をペアリング、matchId(UUIDv7) を採番
-    Q->>R: fetch /init {matchId, seats, decks, ruleVersion}
-    R->>R: seed 生成・シャッフル・初期手札配布
+    Q->>R: fetch /init {matchId, seats, ruleVersion, mapVersion}
+    R->>R: seed生成・盤面生成・規定の方法で先手を設定
     C1->>W: GET /api/v1/matchmaking/status （1秒ポーリング）
     W->>Q: fetch /status
     W-->>C1: {status:'matched', matchId}
@@ -254,10 +254,9 @@ sequenceDiagram
 
 ### 9.5 乱数と ID（D-20 / D-30）
 
-- **試合シード**: `MatchRoom` の初期化時に `crypto.getRandomValues(new Uint8Array(32))` で生成し、SQLite に保存する。**クライアントには決して送信しない**。
-- **シャッフル／ランダム効果**: 決定論 CSPRNG として **HMAC-SHA-256 カウンタ方式**（`output_i = HMAC-SHA256(seed, counter_i)` をバイト列として消費し、`counter` を1ずつ進める）を用いて Fisher–Yates を回す。当初案の xoshiro128\*\* は疑似乱数として高速だが暗号学的性質を持たず、内部状態の推測が可能なため対戦ゲームの乱数には不適切（[rand_xoshiro のドキュメント](https://docs.rs/rand_xoshiro/latest/rand_xoshiro/struct.Xoshiro128StarStar.html)も非暗号用途と明記している）。数値への変換は棄却法（rejection sampling）でバイアスを避ける。
-- **RNGカウンタの記録**: 各 `command_log` 行に、その Command を処理し始めた時点の `rng_counter` を記録する（9.2）。これにより Command 列を先頭から再実行するだけで、消費した乱数列を含めて完全に決定論的な再現ができる。
-- **シードの保管**: 終局後、運営用の完全なリプレイ束（13.3）にのみ含めて R2 に保存する。運営ログとしてのみ参照可能で、API では返さない。
-- **ID の指針**: 「推測困難であるべきリソース ID」（対戦ID、デッキID、ユーザID、招待コードの内部キーなど）には **UUIDv7** を用い、連番の AUTOINCREMENT を使わない（企画書 21）。ただしこれは無差別な規約ではない。**カードマスタID**（`CRD_0001` 等）は公開・列挙されて構わない設計上の識別子であり連番で問題ない。**招待コード**（`match_invite.code`）は人が入力する短い文字列であることが要件そのものであり UUIDv7 は使わない（11.5 のとおり英数8桁）。
+- **試合シード**: `MatchRoom` 初期化時に `crypto.getRandomValues()` で生成し、SQLite に保存する。`MAP_VERSION` と生成盤面は布陣前に両プレイヤーへ公開する。seed 自体の公開時期はルール詳細で確定する。
+- **乱数の範囲**: ニュートラルゾーンの盤面生成にだけ使う。先手を含む他の決定や対局中の行動解決には乱数を使わない。
+- **再現性**: `seed + MAP_VERSION` から盤面が一意に再生成できることをテストする。生成盤面そのものも保存し、再生成結果と照合可能にする。
+- **ID の指針**: 対戦ID、ユーザID、招待の内部キーなど推測困難であるべき ID には UUIDv7 を使う。公開定数であるワニ種別ID、地形ID、マスIDは列挙可能な安定IDでよい。招待コードは人が入力する短い英数8桁とする。
 
 ---

@@ -26,8 +26,8 @@ flowchart TB
             QC["Queue Consumer<br/>（matchIdを受けてDOからexport）"]
         end
 
-        D1[("D1<br/>ユーザ/デッキ/戦績/監査")]
-        R2[("R2<br/>リプレイ/カード画像/音声")]
+        D1[("D1<br/>ユーザ/戦績/監査")]
+        R2[("R2<br/>リプレイ/ワニ画像/音声")]
         Q[["Queues<br/>match-events"]]
         ASSETS["Workers Assets<br/>静的ファイル"]
     end
@@ -59,16 +59,16 @@ SvelteKit（`@sveltejs/adapter-cloudflare`）のローカル開発は `platformP
 
 この制約は結果的に設計上も望ましい。
 
-- 企画書 17章「Durable Object への直接アクセスを許可しない」を構成レベルで担保できる。
-- 対戦基盤（realtime）とアカウント基盤（web）を独立してデプロイ・ロールバックできる（企画書 25章）。
+- [要件定義](../requirements.md)の「Durable Object へ外部から直接アクセスさせない」を構成レベルで担保できる。
+- 対戦基盤（realtime）とアカウント基盤（web）を独立してデプロイ・ロールバックできる。
 - SvelteKit の `_worker.js` が生成物であることに起因する、DO クラス再エクスポートの不安定な回避策を踏まない。
 
 ### 3.3 Worker の責務
 
-| Worker | 責務 | 主なバインディング |
-|---|---|---|
-| `emerald-wani-web` | 画面配信（SSR）、静的アセット、REST API、認証・セッション、デッキ／カード／戦績、マッチング要求の受付、WSチケット発行、管理画面 | `DB`(D1), `REPLAYS`(R2), `MATCH_ROOM`/`MATCH_QUEUE`(DO, `script_name`), `RL_*`(ratelimit), `MATCH_EVENTS`(Queue producer) |
-| `emerald-wani-realtime` | WebSocket の Upgrade 中継（Origin/Upgrade検証・粗いIPレート制限のみ）、`MatchRoom` / `MatchQueue` の実装（**チケット検証は DO 自身が行う**）、Queue consumer | `MATCH_ROOM`/`MATCH_QUEUE`(自Worker), `DB`(D1, 読み書き。マッチ開始時のカード停止確認を含む), `REPLAYS`(R2), `MATCH_EVENTS`(Queue) |
+| Worker                  | 責務                                                                                                                                                         | 主なバインディング                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `emerald-wani-web`      | 画面配信（SSR）、静的アセット、REST API、認証・セッション、戦績、マッチング要求の受付、WSチケット発行、管理画面                                              | `DB`(D1), `REPLAYS`(R2), `MATCH_ROOM`/`MATCH_QUEUE`(DO, `script_name`), `RL_*`(ratelimit), `MATCH_EVENTS`(Queue producer) |
+| `emerald-wani-realtime` | WebSocket の Upgrade 中継（Origin/Upgrade検証・粗いIPレート制限のみ）、`MatchRoom` / `MatchQueue` の実装（**チケット検証は DO 自身が行う**）、Queue consumer | `MATCH_ROOM`/`MATCH_QUEUE`(自Worker), `DB`(D1), `REPLAYS`(R2), `MATCH_EVENTS`(Queue)                                      |
 
 **ルーティング（本番）** — 同一オリジンを維持するため、ゾーン内で経路を分ける。
 
@@ -91,10 +91,10 @@ emerald-wani.example/*     ->  emerald-wani-web
 
 Cloudflare の標準フローでは、入口 Worker は Upgrade 要求を検証したうえで `stub.fetch(request)` を呼び、**DO が接続を受理**して以後のフレームを受け取る（[公式ドキュメント](https://developers.cloudflare.com/durable-objects/best-practices/websockets/)）。realtime Worker が先にフレームを読んでからでないと DO へ渡せない構成は、この標準フローと両立しない。したがって役割を次のように分離する。
 
-| 主体 | 検証すること | 検証しないこと |
-|---|---|---|
+| 主体                    | 検証すること                                                                                   | 検証しないこと                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | realtime Worker（入口） | `Origin` ヘッダー、`Upgrade: websocket` ヘッダー、パス形式、IP 単位の粗いレート制限（DoS対策） | チケットの署名・有効期限・参加者・座席（一切見ない） |
-| MatchRoom DO | `hello` フレームのチケット署名・有効期限・`mid`・`jti` 単回使用・座席 | — |
+| MatchRoom DO            | `hello` フレームのチケット署名・有効期限・`mid`・`jti` 単回使用・座席                          | —                                                    |
 
 **接続確立シーケンス**
 
