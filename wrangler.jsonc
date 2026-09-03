@@ -60,8 +60,8 @@
 	}
 
 	// 以下はフェーズ進行に合わせて追加する（未使用のバインディングは意図的に置かない）:
-	//   - r2_buckets REPLAYS       : フェーズ3（リプレイ保存）
-	//   - queues.producers         : フェーズ3（match-events）
-	//   - ratelimit バインディング  : フェーズ5（doc/designs/11-security-controls.md 11.4）
-	//   - triggers.crons           : フェーズ4（archive 再照合）
+	//   - r2_buckets REPLAYS       : フェーズ5（リプレイ保存。doc/designs/21-roadmap.md）
+	//   - queues.producers         : フェーズ5（match-events）
+	//   - ratelimit バインディング  : フェーズ6（doc/designs/11-security-controls.md 11.4）
+	//   - triggers.crons           : フェーズ5（archive 再照合。doc/designs/03-tech-stack.md 4.3）
 }

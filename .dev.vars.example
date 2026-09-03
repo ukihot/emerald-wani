@@ -14,8 +14,9 @@
 # S-02: better-auth のセッション・トークン署名
 BETTER_AUTH_SECRET=""
 
-# S-01: WebSocket 接続チケットの HMAC 署名（フェーズ3で使用）
-# kid 付きで複数世代を保持できるようにする（_V1, _V2 ...）
+# S-01: WebSocket 接続チケットの HMAC 署名（発行はここ web、検証は realtime）。
+# kid 付きで複数世代を保持できるようにする（_V1, _V2 ...）。
+# workers/realtime/.dev.vars.example にも同じ値を設定すること（検証側が同じ鍵を要求する）。
 WS_TICKET_SECRET_V1=""
 
 # S-03: Turnstile のサーバ側検証（フェーズ5で使用）

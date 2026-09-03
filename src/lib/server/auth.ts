@@ -12,7 +12,7 @@ import { generateGuestDisplayName } from '$lib/server/guest-name';
  * better-auth の構成。
  *
  * フェーズ0では `anonymous` プラグインのみを入れる（doc/designs/21-roadmap.md）。
- * `admin` / `twoFactor` / `captcha` / `haveibeenpwned` はフェーズ4以降で追加する。
+ * `admin` / `twoFactor` / `captcha` / `haveibeenpwned` はフェーズ5（アカウントと履歴）以降で追加する。
  *
  * 重要な前提: ゲストは「検証の緩い経路」ではなく **匿名の認証済みユーザー** である。
  * 認可・不正対策・監査は本登録ユーザーと同一に適用する
@@ -32,7 +32,7 @@ const authConfig = {
 	session: {
 		expiresIn: REGISTERED_SESSION_SECONDS,
 		updateAge: SESSION_UPDATE_AGE_SECONDS
-		// TODO(フェーズ4): ゲストのセッションだけ7日へ短縮する。
+		// TODO(フェーズ5): ゲストのセッションだけ7日へ短縮する。
 		// better-auth はセッション有効期限をグローバルにしか持たないため、
 		// databaseHooks.session.create で isAnonymous を見て expiresAt を上書きする。
 	},
@@ -52,9 +52,9 @@ const authConfig = {
 			generateName: () => generateGuestDisplayName(),
 
 			// フェーズ0では匿名ユーザーの自動削除を止めておく。
-			// 既定では本登録へのリンク後に匿名ユーザー行が削除されるが、所有カード・デッキ・
-			// 戦績の移行（onLinkAccount）はフェーズ4で実装するため、先に削除されると
-			// 引き継ぎ対象が失われる。移行を実装したうえで false へ戻すこと
+			// 既定では本登録へのリンク後に匿名ユーザー行が削除されるが、戦績の移行
+			// （onLinkAccount）はフェーズ5（アカウントと履歴）で実装するため、先に
+			// 削除されると引き継ぎ対象が失われる。移行を実装したうえで false へ戻すこと
 			// （doc/designs/10-auth-and-access.md「アカウント連携時のデータ移行」）。
 			disableDeleteAnonymousUser: true
 		}),

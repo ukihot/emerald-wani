@@ -23,6 +23,7 @@
 		"test": "npm run test:unit -- --run && npm run test:e2e",
 		"test:e2e": "playwright install && playwright test",
 		"verify:phase0": "node scripts/verify-phase0.mjs",
+		"verify:phase4": "node scripts/verify-phase4.mjs",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate:local": "wrangler d1 migrations apply emerald-wani-db --local",
 		"db:migrate:stg": "wrangler d1 migrations apply emerald-wani-db-stg --remote",
