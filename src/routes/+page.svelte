@@ -10,6 +10,7 @@
 		definitionFor,
 		deployCpu,
 		endTurn,
+		actionForCell as findActionForCell,
 		getCellById,
 		legalActionsForPiece,
 		pieceAtCell,
@@ -149,9 +150,7 @@
 
 	function actionForCell(targetCellId: string): GameAction | undefined {
 		const occupant = pieceAtCell(game, targetCellId);
-		return legalActions.find(
-			(candidate) => candidate.toCellId === targetCellId || candidate.targetPieceId === occupant?.id
-		);
+		return findActionForCell(legalActions, targetCellId, occupant?.id);
 	}
 
 	function selectOrAct(targetCellId: string) {

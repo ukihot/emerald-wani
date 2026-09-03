@@ -6,6 +6,7 @@
 		CROCODILES,
 		cellId,
 		definitionFor,
+		actionForCell as findActionForCell,
 		getCellById,
 		legalActionsForPiece,
 		pieceAtCell,
@@ -69,9 +70,7 @@
 	function actionForCell(targetCellId: string): GameAction | undefined {
 		if (!view) return undefined;
 		const occupant = pieceAtCell(view, targetCellId);
-		return legalActions.find(
-			(candidate) => candidate.toCellId === targetCellId || candidate.targetPieceId === occupant?.id
-		);
+		return findActionForCell(legalActions, targetCellId, occupant?.id);
 	}
 
 	function placeDeployment(targetCellId: string) {
