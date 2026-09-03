@@ -48,7 +48,7 @@ export function validateBoard(board: Board): BoardValidationResult;
 
 `generateBoard` は同じ `seed` と `mapVersion` に対して常に同じ盤面を返す。生成結果は `validateBoard` でルールブックの全生成条件を検証し、不成立なら決定論的に次候補へ進む。盤面生成後は盤面そのものを保存し、リプレイ時には seed からの再生成結果とも照合する。
 
-生成された盤面は布陣開始前に両者へ公開する。seed の公開時期はルールブックの未決事項として別途確定する。乱数の用途は盤面生成に限定し、対局中のランダム効果、シャッフル、ドローは存在しない。先手の決定方法も未決事項であり、確定まで乱数を使う前提を置かない。
+生成された盤面、seed、ルール版数、マップ版数、先手は布陣開始前に両者へ公開する。乱数の用途は盤面生成に限定し、対局中のランダム効果、シャッフル、ドローは存在しない。`rules-1.0.0`では南側のSeat 0を先手とする。詳細は[盤面・初期化仕様](../board.md)を正本とする。
 
 ## 4. Command
 
@@ -63,7 +63,7 @@ export function validateBoard(board: Board): BoardValidationResult;
 | `feed`                  | プレイヤー | `carrierId`                             |
 | `endTurn`               | プレイヤー | なし                                    |
 | `concede`               | プレイヤー | なし                                    |
-| `sys.startMatch`        | サーバ     | `seed`, `mapVersion`, `firstSeat`       |
+| `sys.startMatch`        | サーバ     | `seed`, `mapVersion`                    |
 | `sys.deploymentTimeout` | サーバ     | `seat`                                  |
 | `sys.turnTimeout`       | サーバ     | `seat`                                  |
 
@@ -118,8 +118,8 @@ export function projectEvent(event: GameEvent, seat: Seat): GameEvent | null;
 - `RULE_VERSION` は駒・行動・勝敗などルール全体を固定する。
 - `MAP_VERSION` は固定ゾーン形状と生成アルゴリズムを固定する。
 - 試合開始時の両版数を永続化し、進行中の試合とリプレイはその版数で解決する。
-- `src/lib/game/engines/registry.ts` に旧 `RULE_VERSION` の reducer を保持する。
-- `src/lib/game/maps/registry.ts` に旧 `MAP_VERSION` の生成器を保持する。
+- 現行版は `src/lib/game/versions.ts` の `VERSION_REGISTRY` に登録する。
+- 旧版を追加するときは、同レジストリから版数別 reducer / 生成器へ振り分ける。
 - 版数を削除できるのは、その版数の進行中試合がなく、リプレイ検証の保持期間を過ぎた後だけとする。
 
 ## 10. クライアント予告

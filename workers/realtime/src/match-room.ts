@@ -9,7 +9,7 @@ import { DurableObject } from 'cloudflare:workers';
  *   - 行動処理は SQLite の同期 API のみを使い、途中に await を挟まず原子性を保つ。
  *
  * フェーズ0ではストレージスキーマの作成と接続受理の骨組みのみを用意する。
- * 行動処理・チケット検証・再接続・永続化はフェーズ3で実装する。
+ * 行動処理・チケット検証・再接続・永続化はフェーズ4で実装する。
  */
 
 /** `hello` を受け取るまでの猶予（ミリ秒）。超過した接続は切断する。 */
@@ -148,14 +148,14 @@ export class MatchRoom extends DurableObject<Env> {
 		};
 		server.serializeAttachment(attachment);
 
-		// TODO(フェーズ3): authPending のまま AUTH_PENDING_TIMEOUT_MS を超えた接続を
+		// TODO(フェーズ4): authPending のまま AUTH_PENDING_TIMEOUT_MS を超えた接続を
 		// alarm で切断する（doc/designs/07-durable-objects.md 9.2）。
 
 		return new Response(null, { status: 101, webSocket: client });
 	}
 
-	async webSocketMessage(ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {
-		// TODO(フェーズ3): 以下を実装する（doc/designs/07-durable-objects.md 9.2 の処理シーケンス）
+	async webSocketMessage(ws: WebSocket): Promise<void> {
+		// TODO(フェーズ4): 以下を実装する（doc/designs/07-durable-objects.md 9.2 の処理シーケンス）
 		//   1. メッセージサイズ / 頻度チェック
 		//   2. Valibot による厳格検証（未定義キー拒否）
 		//   3. hello: チケット署名・exp・mid・jti 単回使用・座席の検証（この DO 自身が行う）
@@ -164,13 +164,8 @@ export class MatchRoom extends DurableObject<Env> {
 		ws.close(1011, 'not implemented yet');
 	}
 
-	async webSocketClose(
-		ws: WebSocket,
-		code: number,
-		reason: string,
-		_wasClean: boolean
-	): Promise<void> {
-		// TODO(フェーズ3): 座席の connected を落とし、切断猶予の alarm を設定する。
+	async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
+		// TODO(フェーズ4): 座席の connected を落とし、切断猶予の alarm を設定する。
 		ws.close(code, reason);
 	}
 

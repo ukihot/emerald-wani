@@ -9,10 +9,10 @@ import { DurableObject } from 'cloudflare:workers';
  *   - `requestId` による冪等化で enqueue の再送が二重登録にならないようにする。
  *   - lease 方式: `/status` のたびに `lease_until` を延長し、失効したエントリを alarm が除去する。
  *
- * フェーズ0ではスキーマのみ。ペアリングとマッチ生成はフェーズ3で実装する。
+ * フェーズ0ではスキーマのみ。ペアリングとマッチ生成はフェーズ4で実装する。
  *
  * 注: このテーブル定義は設計書に SQL が明示されていないため実装側で補ったもの。
- * フェーズ3の実装時に設計書へ反映すること。
+ * フェーズ4の実装時に設計書へ反映すること。
  */
 
 /** lease の長さ（ミリ秒）。1秒ポーリング前提だが通信の詰まりに余裕を持たせる。 */
@@ -47,8 +47,8 @@ export class MatchQueue extends DurableObject<Env> {
 		});
 	}
 
-	async fetch(_request: Request): Promise<Response> {
-		// TODO(フェーズ3): /enqueue /status /cancel を実装し、alarm(1s) でペアリングする
+	async fetch(): Promise<Response> {
+		// TODO(フェーズ4): /enqueue /status /cancel を実装し、alarm(1s) でペアリングする
 		// （doc/designs/07-durable-objects.md 9.4 のシーケンス）。
 		return new Response('Not Implemented', { status: 501 });
 	}

@@ -4,14 +4,14 @@ import type { PageServerLoad } from './$types';
 
 import { APIError } from 'better-auth/api';
 
-export const load: PageServerLoad = (event) => {
+export const load = ((event) => {
 	if (event.locals.user) {
 		return redirect(302, '/demo/better-auth');
 	}
 	return {};
-};
+}) satisfies PageServerLoad;
 
-export const actions: Actions = {
+export const actions = {
 	signInEmail: async (event) => {
 		const { auth } = event.locals;
 
@@ -61,5 +61,5 @@ export const actions: Actions = {
 		}
 
 		return redirect(302, '/demo/better-auth');
-	},
-};
+	}
+} satisfies Actions;

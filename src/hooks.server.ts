@@ -6,18 +6,23 @@ import type { Handle } from '@sveltejs/kit';
 import { getTextDirection } from '$lib/paraglide/runtime';
 import { paraglideMiddleware } from '$lib/paraglide/server';
 
-const handleParaglide: Handle = ({ event, resolve }) => paraglideMiddleware(event.request, ({ request, locale }) => {
-	event.request = request;
+const handleParaglide: Handle = ({ event, resolve }) =>
+	paraglideMiddleware(event.request, ({ request, locale }) => {
+		event.request = request;
 
-	return resolve(event, {
-		transformPageChunk: ({ html }) => html.replace('%paraglide.lang%', locale).replace('%paraglide.dir%', getTextDirection(locale))
+		return resolve(event, {
+			transformPageChunk: ({ html }) =>
+				html
+					.replace('%paraglide.lang%', locale)
+					.replace('%paraglide.dir%', getTextDirection(locale))
+		});
 	});
-});
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
-	if (!event.platform?.env?.DB) throw new Error('D1 binding "DB" not found - are you running with wrangler?');
+	if (!event.platform?.env?.DB)
+		throw new Error('D1 binding "DB" not found - are you running with wrangler?');
 
-	event.locals.auth = createAuth(event.platform.env.DB);
+	event.locals.auth = createAuth(event.platform.env.DB, event.platform.env.ORIGIN);
 
 	const { auth } = event.locals;
 	const session = await auth.api.getSession({ headers: event.request.headers });

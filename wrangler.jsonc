@@ -7,8 +7,8 @@
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"compatibility_date": "2026-09-03",
 
-	// nodejs_als: SvelteKit が AsyncLocalStorage を利用するため adapter-cloudflare が要求する。
-	"compatibility_flags": ["nodejs_als"],
+	// SvelteKit / better-auth が利用する Node.js API と AsyncLocalStorage を有効にする。
+	"compatibility_flags": ["nodejs_compat"],
 
 	"assets": {
 		"binding": "ASSETS",

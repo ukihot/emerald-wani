@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { anonymous } from 'better-auth/plugins/anonymous';
 import { getRequestEvent } from '$app/server';
+import type { D1Database } from '@cloudflare/workers-types';
 import { getDb } from '$lib/server/db';
 import { generateGuestDisplayName } from '$lib/server/guest-name';
 
@@ -25,7 +26,6 @@ const REGISTERED_SESSION_SECONDS = 60 * 60 * 24 * 30;
 const SESSION_UPDATE_AGE_SECONDS = 60 * 60 * 24;
 
 const authConfig = {
-	baseURL: env.ORIGIN,
 	secret: env.BETTER_AUTH_SECRET,
 	emailAndPassword: { enabled: true },
 
@@ -62,9 +62,10 @@ const authConfig = {
 	]
 } satisfies Omit<Parameters<typeof betterAuth>[0], 'database'>;
 
-export const createAuth = (d1: D1Database) =>
+export const createAuth = (d1: D1Database, baseURL: string) =>
 	betterAuth({
 		...authConfig,
+		baseURL,
 		database: drizzleAdapter(getDb(d1), { provider: 'sqlite' })
 	});
 
@@ -74,4 +75,4 @@ export const createAuth = (d1: D1Database) =>
  * This instance is used by the `auth` CLI for schema generation ONLY.
  * To access `auth` at runtime, use `event.locals.auth`.
  */
-export const auth = createAuth(null!);
+export const auth = createAuth(null!, env.ORIGIN || 'http://localhost:5173');

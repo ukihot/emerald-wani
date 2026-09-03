@@ -29,9 +29,7 @@ export class GuestIssuanceGuard extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		ctx.blockConcurrencyWhile(async () => {
-			this.ctx.storage.sql.exec(
-				`CREATE TABLE IF NOT EXISTS issuance (issued_at INTEGER NOT NULL)`
-			);
+			this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS issuance (issued_at INTEGER NOT NULL)`);
 			this.ctx.storage.sql.exec(
 				`CREATE INDEX IF NOT EXISTS idx_issuance_at ON issuance (issued_at)`
 			);

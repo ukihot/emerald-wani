@@ -1,16 +1,16 @@
 import { redirect } from '@sveltejs/kit';
+import { requireUser } from '$lib/server/auth-guard';
 import type { Actions } from './$types';
 import type { PageServerLoad } from './$types';
 
-
-export const load: PageServerLoad = (event) => {
+export const load = ((event) => {
 	if (!event.locals.user) {
 		return redirect(302, '/demo/better-auth/login');
 	}
-	return { user: event.locals.user };
-};
+	return { user: requireUser(event.locals).user };
+}) satisfies PageServerLoad;
 
-export const actions: Actions = {
+export const actions = {
 	signOut: async (event) => {
 		const { auth } = event.locals;
 
@@ -19,4 +19,4 @@ export const actions: Actions = {
 		});
 		return redirect(302, '/demo/better-auth/login');
 	}
-};
+} satisfies Actions;

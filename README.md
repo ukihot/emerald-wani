@@ -1,42 +1,33 @@
-# sv
+# エメラルドワニ
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+共通の8体を動かし、敵ワニを捕獲・護送・捕食して3点を先取する対戦ゲームです。現在はロードマップのフェーズ0〜3が完了し、ブラウザでCPU戦を遊べます。
 
-## Creating a project
+## ローカル起動
 
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
+Node.js 22.12以上とpnpmを使用します。
 
 ```sh
-# recreate this project
-pnpm dlx sv@0.17.0 create --template minimal --types ts --add prettier eslint vitest="usages:unit,component" playwright tailwindcss="plugins:typography" better-auth="demo:password" paraglide="languageTags:ja, en+demo:no" ai-tools="ide:claude-code+delivery:plugin" drizzle="database:d1" --install pnpm emerald-wani
+pnpm install
+pnpm db:migrate:local
+pnpm dev
 ```
 
-## Developing
+- Web: `http://localhost:5173`
+- Realtime Worker: `http://localhost:8787`
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+`.dev.vars.example`を`.dev.vars`へコピーし、ローカル専用の値を設定してください。開発サーバの起動後は、次のコマンドでWeb、Realtime Worker、匿名セッションをまとめて確認できます。
 
 ```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+pnpm verify:phase0
 ```
 
-## Building
-
-To create a production version of your app:
+## 品質チェック
 
 ```sh
-npm run build
+pnpm check
+pnpm lint
+pnpm test:unit -- --run
+pnpm build
 ```
 
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+ルールは[ルールブック](doc/designs/05-game-rules.md)、確定した盤面仕様は[盤面・初期化仕様](doc/board.md)、実装状況は[ロードマップ](doc/designs/21-roadmap.md)を参照してください。

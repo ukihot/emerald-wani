@@ -4,7 +4,7 @@
 - 作成日: 2026-09-03（1.0）／改訂: 2026-09-03（1.1, 1.2, 2.0）
 - 対象: [`doc/requirements.md`](../requirements.md) のMVP
 - 前提: **Cloudflare Workers Free プラン**（初期投資なし）。無料プラン固有の制約は [技術スタックとプラン制約](./03-tech-stack.md) を参照。
-- 位置づけ: [ルールブック](./05-game-rules.md)をゲーム仕様の正本とし、実装に着手できる粒度まで基本設計を落とし込む。盤面形状・生成パラメータなど未確定の詳細は、ルール本文と混ぜず未決事項として管理する。
+- 位置づけ: [ルールブック](./05-game-rules.md)をゲーム仕様の正本とし、盤面形状・生成パラメータは[盤面・初期化仕様](../board.md)に確定する。
 
 ## ドキュメント構成
 
@@ -24,6 +24,7 @@
 | ファイル                                         | 内容                                                                      |
 | ------------------------------------------------ | ------------------------------------------------------------------------- |
 | [05-game-rules.md](./05-game-rules.md)           | 8体のワニ、生成盤面、布陣、活力、捕獲・運搬・救出・捕食、勝敗の正本       |
+| [../board.md](../board.md)                       | 7×9盤面、座標、地形生成、先手、自動配置、正規化キー                       |
 | [06-rule-engine.md](./06-rule-engine.md)         | 盤面生成、`applyCommand`、Command/Event、布陣中の射影、ルール／マップ版数 |
 | [07-durable-objects.md](./07-durable-objects.md) | MatchRoom / MatchQueue / GuestIssuanceGuard、行動処理、永続化             |
 | [08-data-model.md](./08-data-model.md)           | D1 スキーマとインデックス                                                 |
@@ -49,7 +50,7 @@
 | [17-frontend.md](./17-frontend.md)         | 画面構成、モノクローム＋エメラルドの配色方針、Svelte ネイティブ演出  |
 | [18-availability.md](./18-availability.md) | 障害対策、**RPO/RTO と復元試験**、環境分離、**サービス終了時の扱い** |
 | [19-testing.md](./19-testing.md)           | テスト方針、**セキュリティ要求とテストの対応（OWASP ASVS 参照）**    |
-| [21-roadmap.md](./21-roadmap.md)           | 実装フェーズと未決事項                                               |
+| [21-roadmap.md](./21-roadmap.md)           | 実装フェーズと進捗                                                   |
 | [99-references.md](./99-references.md)     | 参考資料                                                             |
 
 ### 章番号の見方
