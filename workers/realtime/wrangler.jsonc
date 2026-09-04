@@ -24,6 +24,38 @@
 		}
 	],
 
+	// R2: 終局後のリプレイ（doc/designs/09-api-protocol.md 4節）。
+	// web Worker 側も同じバケットを読み取り専用の用途で参照する。
+	"r2_buckets": [
+		{
+			"binding": "REPLAYS",
+			"bucket_name": "emerald-wani-replays"
+		}
+	],
+
+	// Queues: 終局した matchId だけを流す（本体は DO の /internal/export から取る）。
+	// producer（MatchRoom）と consumer を同じワーカーに置くことで、web 側に
+	// Queue バインディングを持たせずに済む（doc/designs/07-durable-objects.md 9.2）。
+	"queues": {
+		"producers": [{ "binding": "MATCH_EVENTS", "queue": "match-events" }],
+		"consumers": [
+			{
+				"queue": "match-events",
+				"max_batch_size": 10,
+				"max_batch_timeout": 5,
+				"max_retries": 5,
+				"dead_letter_queue": "match-events-dlq"
+			}
+		]
+	},
+
+	// Queues 無料プランの保持期間（24時間）を踏まえたアーカイブ再試行のフォールバック。
+	// D1 の match.replay_key IS NULL を1時間ごとに直接スキャンする
+	// （doc/designs/03-tech-stack.md 4.3）。
+	"triggers": {
+		"crons": ["0 * * * *"]
+	},
+
 	// DO の実体はこのワーカーが持つ（doc/designs/07-durable-objects.md 9.1）。
 	"durable_objects": {
 		"bindings": [

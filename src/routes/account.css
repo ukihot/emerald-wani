@@ -1,0 +1,285 @@
+/*
+ * アカウント・戦績まわりの画面（/home, /login, /signup, /history …）の共通スタイル。
+ *
+ * ビジュアル原則（doc/designs/17-frontend.md 2節）に従い、モノクロームを基調に
+ * エメラルドは「主要CTA・自分の勝ち・フォーカスリング」だけに使う。
+ */
+
+.account-shell {
+	width: min(880px, 100%);
+	margin: 0 auto;
+	padding: 32px clamp(16px, 4vw, 40px) 64px;
+}
+
+.account-shell h1 {
+	margin: 0 0 6px;
+	font-size: clamp(1.6rem, 4vw, 2.4rem);
+	font-weight: 900;
+	letter-spacing: -0.04em;
+}
+
+.account-shell .eyebrow {
+	margin: 0;
+	color: #48d797;
+	font-size: 0.66rem;
+	font-weight: 800;
+	letter-spacing: 0.19em;
+}
+
+.account-shell .lead {
+	margin: 0 0 24px;
+	color: #8fa198;
+	font-size: 0.86rem;
+}
+
+.account-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-bottom: 28px;
+}
+
+.account-nav a {
+	padding: 8px 14px;
+	border: 1px solid #24362d;
+	background: #07110cc7;
+	color: #cfe0d5;
+	font-size: 0.76rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-decoration: none;
+}
+
+.account-nav a:hover {
+	border-color: #42e59b;
+	color: #e8fff3;
+}
+
+.card {
+	margin-bottom: 20px;
+	padding: 20px;
+	border: 1px solid #24362d;
+	background: #07110cc7;
+}
+
+.card h2 {
+	margin: 0 0 14px;
+	font-size: 0.94rem;
+	font-weight: 850;
+	letter-spacing: 0.04em;
+}
+
+.record-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+	gap: 12px;
+}
+
+.record-grid div {
+	padding: 12px;
+	border: 1px solid #1c2a23;
+	text-align: center;
+}
+
+.record-grid span {
+	display: block;
+	color: #74877c;
+	font-size: 0.62rem;
+	font-weight: 800;
+	letter-spacing: 0.16em;
+}
+
+.record-grid strong {
+	font-size: 1.6rem;
+	font-weight: 900;
+}
+
+.field {
+	display: grid;
+	gap: 6px;
+	margin-bottom: 14px;
+}
+
+.field label {
+	color: #9fb2a6;
+	font-size: 0.7rem;
+	font-weight: 800;
+	letter-spacing: 0.14em;
+}
+
+.field input {
+	min-height: 44px;
+	padding: 8px 12px;
+	border: 1px solid #24362d;
+	background: #050d09;
+	color: #e8eee9;
+}
+
+.field small {
+	color: #74877c;
+	font-size: 0.7rem;
+}
+
+.form-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+	margin-top: 18px;
+}
+
+.notice {
+	margin: 0 0 16px;
+	padding: 10px 12px;
+	border-left: 2px solid #42e59b;
+	background: #0e2a1e;
+	color: #b6e8cf;
+	font-size: 0.76rem;
+}
+
+.match-list {
+	display: grid;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.match-list li a {
+	display: grid;
+	grid-template-columns: 4.5rem 1fr auto;
+	gap: 12px;
+	align-items: center;
+	padding: 12px 14px;
+	border: 1px solid #24362d;
+	background: #07110cc7;
+	color: #cfe0d5;
+	text-decoration: none;
+}
+
+.match-list li a:hover {
+	border-color: #42e59b;
+}
+
+.result-badge {
+	padding: 4px 0;
+	border: 1px solid #33463b;
+	color: #9fb2a6;
+	font-size: 0.7rem;
+	font-weight: 900;
+	letter-spacing: 0.12em;
+	text-align: center;
+}
+
+.result-badge.win {
+	border-color: #42e59b;
+	color: #42e59b;
+}
+
+.result-badge.loss {
+	border-color: #5b3d3d;
+	color: #b99999;
+}
+
+.match-meta {
+	color: #74877c;
+	font-size: 0.72rem;
+}
+
+.replay-log {
+	max-height: 24rem;
+	overflow-y: auto;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border: 1px solid #1c2a23;
+}
+
+.replay-log li {
+	display: grid;
+	grid-template-columns: 3rem 5rem 1fr;
+	gap: 10px;
+	padding: 7px 10px;
+	border-bottom: 1px solid #16221c;
+	font-size: 0.76rem;
+}
+
+.replay-log li:last-child {
+	border-bottom: none;
+}
+
+.replay-log .rev {
+	color: #74877c;
+	font-variant-numeric: tabular-nums;
+}
+
+.replay-log .actor {
+	color: #8fa198;
+	font-size: 0.68rem;
+	font-weight: 800;
+	letter-spacing: 0.1em;
+}
+
+.replay-log .actor.mine {
+	color: #42e59b;
+}
+
+.empty-state {
+	margin: 0;
+	color: #74877c;
+	font-size: 0.8rem;
+}
+
+/*
+ * ボタンと警告表示。対戦画面（game.css）と同じ見た目を、アカウント系の画面でも
+ * 使えるようにここに持つ（game.css は対戦盤面専用で読み込みたくないため）。
+ */
+
+.primary,
+.secondary {
+	min-height: 44px;
+	padding: 10px 18px;
+	border: 1px solid #24362d;
+	background: transparent;
+	color: #cfe0d5;
+	cursor: pointer;
+	font-size: 0.78rem;
+	font-weight: 850;
+	letter-spacing: 0.04em;
+}
+
+.primary {
+	border-color: #54f3aa;
+	background: #42e59b;
+	color: #06120b;
+	box-shadow: 0 0 22px #42e59b29;
+}
+
+.primary:disabled {
+	cursor: not-allowed;
+	filter: grayscale(1);
+	opacity: 0.35;
+}
+
+.secondary.danger {
+	border-color: #5b3d3d;
+	color: #b99999;
+}
+
+.account-shell .error {
+	margin: 0 0 16px;
+	padding: 9px 12px;
+	border-left: 2px solid #ffb56b;
+	background: #6d38192e;
+	color: #ffc58d;
+	font-size: 0.72rem;
+}
+
+.account-shell a {
+	color: #9fe6c4;
+}
+
+.form-actions a {
+	font-size: 0.78rem;
+	font-weight: 700;
+}

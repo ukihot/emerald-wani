@@ -9,7 +9,7 @@
 	"scripts": {
 		"dev": "run-p dev:web dev:realtime",
 		"dev:web": "vite dev --port 5173",
-		"dev:realtime": "wrangler dev -c workers/realtime/wrangler.jsonc --port 8787",
+		"dev:realtime": "wrangler dev -c workers/realtime/wrangler.jsonc --port 8787 --persist-to .wrangler/state",
 		"dev:reset": "node -e \"require('node:fs').rmSync('.wrangler/state',{recursive:true,force:true})\"",
 		"build": "vite build && pnpm build:realtime",
 		"build:realtime": "wrangler types -c workers/realtime/wrangler.jsonc workers/realtime/worker-configuration.d.ts && tsc -p workers/realtime/tsconfig.json --noEmit",
@@ -31,7 +31,8 @@
 		"cf-typegen": "wrangler types && wrangler types -c workers/realtime/wrangler.jsonc workers/realtime/worker-configuration.d.ts",
 		"deploy:web": "vite build && wrangler deploy",
 		"deploy:realtime": "wrangler deploy -c workers/realtime/wrangler.jsonc",
-		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes"
+		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
+		"verify:phase5": "node scripts/verify-phase5.mjs"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^5.20260903.1",

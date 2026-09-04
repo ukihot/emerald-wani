@@ -1,5 +1,5 @@
 import type { User, Session } from 'better-auth';
-import type { D1Database, DurableObjectNamespace } from '@cloudflare/workers-types';
+import type { D1Database, DurableObjectNamespace, R2Bucket } from '@cloudflare/workers-types';
 import { createAuth } from '$lib/server/auth';
 
 // See https://svelte.dev/docs/kit/types#app.d.ts
@@ -19,6 +19,8 @@ declare global {
 			env: {
 				DB: D1Database;
 				ORIGIN: string;
+				/** リプレイの R2。書き込むのは realtime Worker だけで、web は読むだけ。 */
+				REPLAYS: R2Bucket;
 				/**
 				 * realtime Worker の DO は `script_name` 越しの参照のため、生成される型は
 				 * 汎用の DurableObjectNamespace になる（doc/designs/02-architecture.md 3.2）。

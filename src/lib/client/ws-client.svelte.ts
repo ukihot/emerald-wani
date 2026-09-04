@@ -1,6 +1,7 @@
 import { SvelteMap } from 'svelte/reactivity';
 import type { GameState } from '$lib/game';
 import type { ErrorCode } from '$lib/protocol/ws';
+import { m } from '$lib/paraglide/messages';
 
 /**
  * オンライン対戦用の WebSocket クライアント。
@@ -72,7 +73,7 @@ export class WsClient {
 	/** 行動を送信する。サーバの `actionResult` が届くと解決する。 */
 	sendAction(action: Record<string, unknown>): Promise<void> {
 		if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-			return Promise.reject(new Error('接続していません'));
+			return Promise.reject(new Error(m.log_not_connected()));
 		}
 		const actionId = crypto.randomUUID();
 		const message = { t: 'act', actionId, baseRev: this.rev, action };
@@ -94,7 +95,7 @@ export class WsClient {
 		try {
 			ticket = await this.getTicket();
 		} catch {
-			this.pushLog('チケットの取得に失敗しました');
+			this.pushLog(m.log_ticket_failed());
 			this.scheduleReconnect();
 			return;
 		}
@@ -158,7 +159,7 @@ export class WsClient {
 				this.rev = message.rev as number;
 				this.view = message.view as GameState;
 				this.deadlines = message.deadlines as Deadlines;
-				this.pushLog('サーバへ接続しました');
+				this.pushLog(m.log_connected());
 				break;
 			}
 			case 'actionResult': {
@@ -191,7 +192,9 @@ export class WsClient {
 			}
 			case 'opponent': {
 				this.opponentConnected = message.status === 'connected';
-				this.pushLog(this.opponentConnected ? '相手が接続しました' : '相手が切断しました');
+				this.pushLog(
+					this.opponentConnected ? m.log_opponent_connected() : m.log_opponent_disconnected()
+				);
 				break;
 			}
 			case 'finished': {
@@ -200,7 +203,7 @@ export class WsClient {
 					winnerSeat: message.winnerSeat as 0 | 1 | null,
 					endReason: message.endReason as string | null
 				};
-				this.pushLog('対局が終了しました');
+				this.pushLog(m.log_match_finished());
 				break;
 			}
 		}

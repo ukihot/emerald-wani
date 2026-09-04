@@ -28,7 +28,9 @@ import {
 	type Command,
 	type ErrorCode
 } from '$protocol/ws';
+import { REPLAY_FORMAT_VERSION, type ReplayEntry, type ReplayHeader } from '$protocol/replay';
 import { secretsFromEnv, verifyTicket } from '$protocol/ws-ticket';
+import { upsertMatchResult } from './archive';
 
 /**
  * MatchRoom — 1試合につき1つ割り当てる Durable Object。対戦状態の「正」を保持する。
@@ -44,9 +46,12 @@ import { secretsFromEnv, verifyTicket } from '$protocol/ws-ticket';
  * この DO 自身が「受理した Command を1つ選び、対応するエンジン関数を1回だけ呼ぶ」
  * ディスパッチャを担い、その呼び出し単位で rev を1増やす。
  *
- * フェーズ5で実装するもの（今回は対象外。理由は各所にコメント）:
- *   - D1 / R2 への終局後アーカイブ（Queue送出、/internal/export）
- *   - security_event への異常系の永続化（今は console.error のみ）
+ * フェーズ5で追加したもの:
+ *   - 終局後のアーカイブ（D1 への結果書き込み、Queue 送出、/internal/export、
+ *     /internal/archive-complete、archived 確認後の掃除）
+ *
+ * まだ実装していないもの:
+ *   - security_event への異常系の永続化（フェーズ6。今は console.error のみ）
  *   - CPU練習戦（座席1をCPUにする /internal/init の mode='cpu'）
  */
 
@@ -85,6 +90,14 @@ interface SeatRow extends Record<string, SqlStorageValue> {
 	connected: number;
 	active_conn_id: string | null;
 	timeout_streak: number;
+}
+
+interface ArchiveStateRow extends Record<string, SqlStorageValue> {
+	id: 1;
+	status: 'pending' | 'archived' | 'failed' | 'cleaned';
+	attempts: number;
+	last_error: string | null;
+	archived_at: number | null;
 }
 
 interface ActionLogRow extends Record<string, SqlStorageValue> {
@@ -132,6 +145,12 @@ interface EventBatch {
 	actorSeat: number | null;
 	events: GameEvent[];
 }
+
+/**
+ * 終局から DO の掃除までの最短待ち時間（doc/designs/07-durable-objects.md 9.2）。
+ * この時間内は結果閲覧のために WS と状態を保持する。
+ */
+const ARCHIVE_CLEANUP_MIN_DELAY_MS = 10 * 60 * 1000;
 
 interface Deadlines {
 	deploymentEndsAt: number | null;
@@ -249,6 +268,15 @@ export class MatchRoom extends DurableObject<Env> {
 		}
 		if (request.method === 'GET' && url.pathname === '/internal/seat') {
 			return this.handleSeatLookup(url.searchParams.get('userId'));
+		}
+		if (request.method === 'GET' && url.pathname === '/internal/export') {
+			return this.handleExport();
+		}
+		if (request.method === 'POST' && url.pathname === '/internal/archive-complete') {
+			return this.handleArchiveComplete(request);
+		}
+		if (request.method === 'POST' && url.pathname === '/internal/archive-failed') {
+			return this.handleArchiveFailed(request);
 		}
 
 		if (request.headers.get('Upgrade') !== 'websocket') {
@@ -719,11 +747,7 @@ export class MatchRoom extends DurableObject<Env> {
 				endReason: nextState.endReason,
 				summary: nextState
 			});
-			this.ctx.storage.sql.exec(`UPDATE archive_state SET status = 'pending' WHERE id = 1`);
-			// TODO(フェーズ5): Queue へ { matchId } を送信し、D1/R2 への永続化を開始する
-			// （doc/designs/07-durable-objects.md 9.2 の永続化フロー）。現状は DO の SQLite に
-			// 状態が残り続けるだけで安全側に倒れており、データは失われない。
-			this.scheduleNextAlarm(null);
+			this.onMatchFinished(now);
 			return;
 		}
 
@@ -770,7 +794,11 @@ export class MatchRoom extends DurableObject<Env> {
 			}
 		}
 
-		if (!row || row.status === 'finished' || row.status === 'void') return;
+		if (!row) return;
+		if (row.status === 'finished' || row.status === 'void') {
+			this.cleanupIfArchived(row, now);
+			return;
+		}
 
 		const state = JSON.parse(row.state_json) as GameState;
 
@@ -880,11 +908,181 @@ export class MatchRoom extends DurableObject<Env> {
 				endReason: nextState.endReason,
 				summary: nextState
 			});
-			this.ctx.storage.sql.exec(`UPDATE archive_state SET status = 'pending' WHERE id = 1`);
-			this.scheduleNextAlarm(null);
+			this.onMatchFinished(now);
 			return;
 		}
 		this.scheduleNextAlarm(deploymentDeadline ?? turnDeadline);
+	}
+
+	// ── 終局後の永続化（アーカイブ） ─────────────────────────────────────
+
+	/**
+	 * 終局直後の処理（doc/designs/07-durable-objects.md 9.2）。
+	 *
+	 * WS はここでは閉じない（結果閲覧のため一定時間維持する）。DO の SQLite は
+	 * `archive_state.status = 'archived'` を確認できるまで消さない。
+	 */
+	private onMatchFinished(now: number): void {
+		this.ctx.storage.sql.exec(`UPDATE archive_state SET status = 'pending' WHERE id = 1`);
+		this.scheduleNextAlarm(now + ARCHIVE_CLEANUP_MIN_DELAY_MS);
+		// Queue への送出と D1 への結果書き込みは非同期。ここで失敗しても DO の
+		// SQLite は保持されたままなので、Cron のフォールバックが拾い直せる。
+		this.ctx.waitUntil(this.announceFinished());
+	}
+
+	private async announceFinished(): Promise<void> {
+		const row = this.readMatchState();
+		if (!row) return;
+		const header = this.buildReplayHeader(row);
+
+		// 先に D1 へ結果を書く。リプレイ本体（replay_key）は consumer が後から埋める。
+		// この行が「アーカイブ未完了の対戦」の発見手段になる（Cron のスキャン対象）。
+		try {
+			await upsertMatchResult(this.env, header);
+		} catch (error) {
+			console.error('MatchRoom: failed to record match result in D1', error);
+		}
+
+		try {
+			// Queue には matchId だけを送る。ログ本体は consumer が /internal/export から
+			// 取得する（128KB のメッセージ上限を避ける。doc/designs/07-durable-objects.md 9.2）。
+			await this.env.MATCH_EVENTS.send({ matchId: row.match_id });
+		} catch (error) {
+			console.error('MatchRoom: failed to enqueue archive job', error);
+		}
+	}
+
+	/**
+	 * consumer と Cron フォールバックだけが呼ぶ内部限定エクスポート。
+	 *
+	 * DO は外部から直接叩けない（realtime Worker のバインディング経由のみ）ため、
+	 * このパスに追加の認証は置かない（doc/designs/02-architecture.md 3.3）。
+	 * 1試合の command_log は数百件規模のため、ストリーミングせず1レスポンスで返す。
+	 */
+	private handleExport(): Response {
+		const row = this.readMatchState();
+		if (!row) return Response.json({ error: 'not_found' }, { status: 404 });
+		if (row.status !== 'finished' && row.status !== 'void') {
+			return Response.json({ error: 'not_finished' }, { status: 409 });
+		}
+
+		const commands = this.ctx.storage.sql
+			.exec<{ rev: number; ts: number; actor_seat: number | null; command_json: string }>(
+				`SELECT rev, ts, actor_seat, command_json FROM command_log ORDER BY rev`
+			)
+			.toArray();
+		const eventRows = this.ctx.storage.sql
+			.exec<{ rev: number; event_seq: number; event_json: string }>(
+				`SELECT rev, event_seq, event_json FROM event_log ORDER BY rev, event_seq`
+			)
+			.toArray();
+
+		const eventsByRev = new Map<number, GameEvent[]>();
+		for (const event of eventRows) {
+			const list = eventsByRev.get(event.rev) ?? [];
+			list[event.event_seq] = JSON.parse(event.event_json) as GameEvent;
+			eventsByRev.set(event.rev, list);
+		}
+
+		const entries: ReplayEntry[] = commands.map((command) => ({
+			rev: command.rev,
+			ts: command.ts,
+			actorSeat: command.actor_seat === null ? null : (command.actor_seat as Seat),
+			command: JSON.parse(command.command_json) as Record<string, unknown>,
+			events: eventsByRev.get(command.rev) ?? []
+		}));
+
+		return Response.json({ header: this.buildReplayHeader(row), entries });
+	}
+
+	private async handleArchiveComplete(request: Request): Promise<Response> {
+		const body = (await request.json().catch(() => null)) as { replayKey?: string } | null;
+		if (!body?.replayKey) return Response.json({ ok: false }, { status: 400 });
+
+		const now = Date.now();
+		this.ctx.storage.sql.exec(
+			`UPDATE archive_state SET status = 'archived', last_error = NULL, archived_at = ? WHERE id = 1`,
+			now
+		);
+		const row = this.readMatchState();
+		this.scheduleNextAlarm((row?.ended_at ?? now) + ARCHIVE_CLEANUP_MIN_DELAY_MS);
+		return Response.json({ ok: true });
+	}
+
+	private async handleArchiveFailed(request: Request): Promise<Response> {
+		const body = (await request.json().catch(() => null)) as { error?: string } | null;
+		this.ctx.storage.sql.exec(
+			`UPDATE archive_state SET status = 'failed', attempts = attempts + 1, last_error = ? WHERE id = 1`,
+			(body?.error ?? 'unknown').slice(0, 500)
+		);
+		return Response.json({ ok: true });
+	}
+
+	/**
+	 * 終局後の掃除。`archived` を確認できた後、かつ終局から最短10分で実行する。
+	 *
+	 * 設計文書は「DO の SQLite を削除する」としているが、`storage.deleteAll()` は
+	 * `archive_state` の記録ごと消してしまい、掃除済みかどうかを後から確認できない。
+	 * ここでは容量を占める表を明示的に空にし、`archive_state` を `cleaned` の
+	 * 墓標として残す（対戦IDはランダムなので再利用されない）。
+	 */
+	private cleanupIfArchived(row: MatchStateRow, now: number): void {
+		const archive = this.ctx.storage.sql
+			.exec<ArchiveStateRow>(`SELECT * FROM archive_state WHERE id = 1`)
+			.toArray()[0];
+		if (!archive || archive.status === 'cleaned') return;
+		if (archive.status !== 'archived') {
+			// pending / failed のあいだは決して消さない。Queue のリトライと Cron の
+			// フォールバックが完了を報告するまで DO 側が唯一の正本である。
+			return;
+		}
+
+		const cleanupAt = (row.ended_at ?? now) + ARCHIVE_CLEANUP_MIN_DELAY_MS;
+		if (now < cleanupAt) {
+			this.scheduleNextAlarm(cleanupAt);
+			return;
+		}
+
+		for (const ws of this.ctx.getWebSockets()) {
+			try {
+				ws.close(1000, 'match archived');
+			} catch {
+				/* 既に閉じている場合は無視する */
+			}
+		}
+		for (const table of ['command_log', 'event_log', 'action_log', 'used_ticket']) {
+			this.ctx.storage.sql.exec(`DELETE FROM ${table}`);
+		}
+		this.ctx.storage.sql.exec(`UPDATE archive_state SET status = 'cleaned' WHERE id = 1`);
+	}
+
+	private readSeats(): SeatRow[] {
+		return this.ctx.storage.sql.exec<SeatRow>(`SELECT * FROM seat ORDER BY seat`).toArray();
+	}
+
+	private buildReplayHeader(row: MatchStateRow): ReplayHeader {
+		const state = JSON.parse(row.state_json) as GameState;
+		const winnerSeat = row.winner_seat === null ? null : ((row.winner_seat === 0 ? 0 : 1) as Seat);
+		return {
+			v: REPLAY_FORMAT_VERSION,
+			matchId: row.match_id,
+			mode: row.mode,
+			ruleVersion: row.rule_version,
+			mapVersion: row.map_version,
+			seed: row.seed,
+			firstSeat: state.firstSeat,
+			startedAt: row.started_at,
+			endedAt: row.ended_at,
+			winnerSeat,
+			endReason: row.end_reason,
+			score: [state.score[0], state.score[1]],
+			roundCount: state.round,
+			seats: this.readSeats().map((seat) => ({
+				seat: seat.seat,
+				userId: seat.user_id,
+				result: resultFor(seat.seat, winnerSeat)
+			}))
+		};
 	}
 
 	// ── 補助関数 ────────────────────────────────────────────────────────
@@ -1022,6 +1220,12 @@ function groupIntoBatches(
 	return [...byRev.entries()]
 		.sort(([a], [b]) => a - b)
 		.map(([rev, events]) => ({ rev, actorSeat: actorBySeatRev.get(rev) ?? null, events }));
+}
+
+/** 座席から見た勝敗。引き分けと無効試合は `draw` として扱う。 */
+function resultFor(seat: Seat, winnerSeat: Seat | null): string {
+	if (winnerSeat === null) return 'draw';
+	return winnerSeat === seat ? 'win' : 'loss';
 }
 
 function seatValue(winner: GameState['winner']): Seat | null {

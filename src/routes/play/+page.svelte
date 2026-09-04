@@ -2,6 +2,7 @@
 	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { m } from '$lib/paraglide/messages';
 	import '../game.css';
 
 	type Status = 'idle' | 'waiting' | 'matched' | 'error';
@@ -23,7 +24,7 @@
 			startPolling();
 		} catch {
 			status = 'error';
-			errorMessage = 'マッチングを開始できませんでした。';
+			errorMessage = m.play_enqueue_failed();
 		}
 	}
 
@@ -67,26 +68,26 @@
 </script>
 
 <svelte:head>
-	<title>オンライン対戦 | エメラルドワニ</title>
+	<title>{m.play_page_title()}</title>
 </svelte:head>
 
 <main class="lobby-shell">
-	<h1>オンライン対戦</h1>
-	<p class="tagline">ランダムマッチで対戦相手を探します。</p>
+	<h1>{m.play_heading()}</h1>
+	<p class="tagline">{m.play_lead()}</p>
 
 	{#if status === 'idle'}
-		<button type="button" class="primary" onclick={enqueue}>対戦相手を探す</button>
+		<button type="button" class="primary" onclick={enqueue}>{m.play_find_opponent()}</button>
 	{:else if status === 'waiting'}
 		<div class="waiting">
 			<span class="spinner" aria-hidden="true"></span>
-			<p>対戦相手を探しています…</p>
-			<button type="button" class="secondary" onclick={cancel}>キャンセル</button>
+			<p>{m.play_searching()}</p>
+			<button type="button" class="secondary" onclick={cancel}>{m.play_cancel()}</button>
 		</div>
 	{:else if status === 'matched'}
-		<p>対戦相手が見つかりました。対戦画面へ移動します…</p>
+		<p>{m.play_matched()}</p>
 	{:else if status === 'error'}
 		<p class="error" role="alert">{errorMessage}</p>
-		<button type="button" class="primary" onclick={enqueue}>再試行</button>
+		<button type="button" class="primary" onclick={enqueue}>{m.play_retry()}</button>
 	{/if}
 </main>
 

@@ -5,14 +5,25 @@ import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { anonymous } from 'better-auth/plugins/anonymous';
 import { getRequestEvent } from '$app/server';
 import type { D1Database } from '@cloudflare/workers-types';
+import { eq } from 'drizzle-orm';
 import { getDb } from '$lib/server/db';
+import { playerProfile, user as userTable } from '$lib/server/db/schema';
 import { generateGuestDisplayName } from '$lib/server/guest-name';
+import { migrateAnonymousAccount } from '$lib/server/account-migration';
+import {
+	resetPasswordEmail,
+	sendEmail,
+	verificationEmail,
+	type EmailConfig
+} from '$lib/server/email';
 
 /**
  * better-auth の構成。
  *
- * フェーズ0では `anonymous` プラグインのみを入れる（doc/designs/21-roadmap.md）。
- * `admin` / `twoFactor` / `captcha` / `haveibeenpwned` はフェーズ5（アカウントと履歴）以降で追加する。
+ * フェーズ5（アカウントと履歴）で `anonymous` に加え、メール+パスワードの本登録、
+ * 確認メール、パスワード再設定、匿名からのデータ移行を有効化した。
+ * `admin` / `twoFactor` / `captcha` / `haveibeenpwned` はフェーズ6（セキュリティ強化）
+ * で追加する（doc/designs/21-roadmap.md）。
  *
  * 重要な前提: ゲストは「検証の緩い経路」ではなく **匿名の認証済みユーザー** である。
  * 認可・不正対策・監査は本登録ユーザーと同一に適用する
@@ -22,52 +33,137 @@ import { generateGuestDisplayName } from '$lib/server/guest-name';
 /** 本登録ユーザーのセッション有効期限（doc/designs/10-auth-and-access.md 10.2）。 */
 const REGISTERED_SESSION_SECONDS = 60 * 60 * 24 * 30;
 
+/** ゲストのセッション有効期限。失効後は復元しない。 */
+const GUEST_SESSION_SECONDS = 60 * 60 * 24 * 7;
+
 /** セッションのローリング更新間隔。 */
 const SESSION_UPDATE_AGE_SECONDS = 60 * 60 * 24;
 
-const authConfig = {
-	secret: env.BETTER_AUTH_SECRET,
-	emailAndPassword: { enabled: true },
+/** 確認メールのトークン有効期限。 */
+const VERIFICATION_TOKEN_SECONDS = 60 * 60;
 
-	session: {
-		expiresIn: REGISTERED_SESSION_SECONDS,
-		updateAge: SESSION_UPDATE_AGE_SECONDS
-		// TODO(フェーズ5): ゲストのセッションだけ7日へ短縮する。
-		// better-auth はセッション有効期限をグローバルにしか持たないため、
-		// databaseHooks.session.create で isAnonymous を見て expiresAt を上書きする。
-	},
+/** 再設定トークンの有効期限（doc/designs/10-auth-and-access.md: 推奨15分・単回使用）。 */
+const RESET_TOKEN_SECONDS = 15 * 60;
 
-	advanced: {
-		// 既定値に依存せず明示する（doc/designs/10-auth-and-access.md 10.2）。
-		// secure は better-auth の既定どおり本番でのみ付与される（開発は http のため）。
-		defaultCookieAttributes: {
-			httpOnly: true,
-			sameSite: 'lax',
-			path: '/'
-		}
-	},
+function emailConfigFromEnv(): EmailConfig {
+	return {
+		apiKey: env.RESEND_API_KEY,
+		from: env.EMAIL_FROM,
+		// ローカル開発以外では「ログに出して成功扱い」のフォールバックを禁じる。
+		requireProvider: (env.ENVIRONMENT ?? 'development') !== 'development'
+	};
+}
 
-	plugins: [
-		anonymous({
-			generateName: () => generateGuestDisplayName(),
+export const createAuth = (d1: D1Database, baseURL: string) => {
+	const db = getDb(d1);
 
-			// フェーズ0では匿名ユーザーの自動削除を止めておく。
-			// 既定では本登録へのリンク後に匿名ユーザー行が削除されるが、戦績の移行
-			// （onLinkAccount）はフェーズ5（アカウントと履歴）で実装するため、先に
-			// 削除されると引き継ぎ対象が失われる。移行を実装したうえで false へ戻すこと
-			// （doc/designs/10-auth-and-access.md「アカウント連携時のデータ移行」）。
-			disableDeleteAnonymousUser: true
-		}),
-		sveltekitCookies(getRequestEvent) // 必ず配列の最後に置く
-	]
-} satisfies Omit<Parameters<typeof betterAuth>[0], 'database'>;
-
-export const createAuth = (d1: D1Database, baseURL: string) =>
-	betterAuth({
-		...authConfig,
+	return betterAuth({
+		secret: env.BETTER_AUTH_SECRET,
 		baseURL,
-		database: drizzleAdapter(getDb(d1), { provider: 'sqlite' })
+		database: drizzleAdapter(db, { provider: 'sqlite' }),
+
+		emailAndPassword: {
+			enabled: true,
+			minPasswordLength: 8,
+			// 確認メールは送るが、未確認でもログインと対戦は妨げない。
+			// 「すぐ遊べること」もセキュリティ要件であり（doc/designs/01-principles.md 3）、
+			// ゲストから昇格した直後に対戦導線が切れるのを避ける。掲載・報酬など
+			// 確認済みを要求すべき機能はフェーズ6以降で個別に判断する。
+			requireEmailVerification: false,
+			resetPasswordTokenExpiresIn: RESET_TOKEN_SECONDS,
+			sendResetPassword: async ({ user, url }) => {
+				await sendEmail(emailConfigFromEnv(), { to: user.email, ...resetPasswordEmail(url) });
+			}
+		},
+
+		emailVerification: {
+			sendOnSignUp: true,
+			autoSignInAfterVerification: true,
+			expiresIn: VERIFICATION_TOKEN_SECONDS,
+			sendVerificationEmail: async ({ user, url }) => {
+				await sendEmail(emailConfigFromEnv(), { to: user.email, ...verificationEmail(url) });
+			}
+		},
+
+		session: {
+			expiresIn: REGISTERED_SESSION_SECONDS,
+			updateAge: SESSION_UPDATE_AGE_SECONDS
+		},
+
+		advanced: {
+			// 既定値に依存せず明示する（doc/designs/10-auth-and-access.md 10.2）。
+			// secure は better-auth の既定どおり本番でのみ付与される（開発は http のため）。
+			defaultCookieAttributes: {
+				httpOnly: true,
+				sameSite: 'lax',
+				path: '/'
+			}
+		},
+
+		databaseHooks: {
+			user: {
+				create: {
+					after: async (created) => {
+						// 表示情報はゲスト・本登録を問わず `player_profile` に持つ。
+						// 匿名→本登録の移行はこの行ごと引き継ぐ（account-migration.ts）。
+						await db
+							.insert(playerProfile)
+							.values({ userId: created.id, displayName: created.name })
+							.onConflictDoNothing();
+					}
+				}
+			},
+			session: {
+				create: {
+					before: async (session) => {
+						// better-auth はセッション有効期限をグローバルにしか持たないため、
+						// ゲストのセッションだけをここで7日へ短縮する
+						// （doc/designs/10-auth-and-access.md 10.2）。
+						const [owner] = await db
+							.select({ isAnonymous: userTable.isAnonymous })
+							.from(userTable)
+							.where(eq(userTable.id, session.userId))
+							.limit(1);
+						if (!owner?.isAnonymous) return;
+						return {
+							data: {
+								...session,
+								expiresAt: new Date(Date.now() + GUEST_SESSION_SECONDS * 1000)
+							}
+						};
+					}
+				}
+			}
+		},
+
+		plugins: [
+			anonymous({
+				generateName: () => generateGuestDisplayName(),
+
+				// 匿名ユーザー行は本登録へのリンク後に削除される。削除の前に
+				// `onLinkAccount` で戦績・設定を移行しているため、引き継ぎ対象は失われない
+				// （doc/designs/10-auth-and-access.md「アカウント連携時のデータ移行」）。
+				disableDeleteAnonymousUser: false,
+
+				onLinkAccount: async ({ anonymousUser, newUser }) => {
+					// ここで例外を投げると better-auth は匿名ユーザーを削除せずに失敗する。
+					// 「移行成功後だけ削除を許可する」という設計上の要求は、この
+					// 「失敗したら投げる」挙動でそのまま満たされる。
+					const summary = await migrateAnonymousAccount(db, {
+						anonymousUserId: anonymousUser.user.id,
+						newUserId: newUser.user.id,
+						newDisplayName: newUser.user.name
+					});
+					console.info('anonymous account migrated', {
+						matches: summary.matches,
+						profile: summary.profile
+					});
+				}
+			}),
+			sveltekitCookies(getRequestEvent) // 必ず配列の最後に置く
+		]
 	});
+};
 
 /**
  * DO NOT USE!

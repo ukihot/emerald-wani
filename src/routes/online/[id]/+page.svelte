@@ -16,6 +16,8 @@
 		type GameAction
 	} from '$lib/game';
 	import { WsClient } from '$lib/client/ws-client.svelte';
+	import { m } from '$lib/paraglide/messages';
+	import { terrainLabel } from '$lib/i18n/match-labels';
 	import '../../game.css';
 
 	const matchId = page.params.id ?? '';
@@ -184,23 +186,27 @@
 		if (!cell) return targetCellId;
 		const occupant = boardPiece(targetCellId);
 		const draft = draftKindAt(targetCellId);
-		const terrain = { normal: '通常', swamp: '沼', tree: '木', nest: '巣', void: '盤外' }[
-			cell.terrain
-		];
+		// ワニの名前はルールエンジンの版数付きデータなので翻訳しない
+		// （src/lib/i18n/match-labels.ts の注記を参照）。
 		const name = occupant
 			? definitionFor(occupant.kind).name
 			: draft
 				? definitionFor(draft).name
-				: '空き';
-		return `${cell.x + 1}列${cell.y + 1}段、${terrain}、${name}`;
+				: m.board_cell_empty();
+		return m.board_cell_label({
+			column: cell.x + 1,
+			row: cell.y + 1,
+			terrain: terrainLabel(cell.terrain),
+			occupant: name
+		});
 	}
 
 	function actionDestination(candidate: GameAction): string {
 		if (!view) return '';
-		if (candidate.type === 'feed') return 'この場で実行';
+		if (candidate.type === 'feed') return m.action_destination_here();
 		const target = candidate.targetPieceId ? view.pieces[candidate.targetPieceId] : null;
 		const destination = candidate.toCellId ?? (target?.position ? cellId(target.position) : '');
-		return destination ? `→ ${destination}` : '';
+		return destination ? m.action_destination_to({ cell: destination }) : '';
 	}
 
 	function clockLabel(): string {
@@ -211,54 +217,58 @@
 </script>
 
 <svelte:head>
-	<title>オンライン対戦 | エメラルドワニ</title>
+	<title>{m.online_page_title()}</title>
 </svelte:head>
 
 <main class="game-shell">
 	<header class="topbar">
 		<div>
-			<p class="eyebrow">ONLINE MATCH</p>
-			<h1>エメラルド<span>ワニ</span></h1>
+			<p class="eyebrow">{m.online_eyebrow()}</p>
+			<h1>{m.app_name_head()}<span>{m.app_name_tail()}</span></h1>
 			<p class="tagline">
 				{client.status === 'open'
-					? '接続中'
+					? m.online_status_open()
 					: client.status === 'reconnecting'
-						? '再接続しています…'
+						? m.online_status_reconnecting()
 						: client.status === 'connecting'
-							? '接続しています…'
-							: '切断されました'}
-				{#if !client.opponentConnected}（相手が切断中）{/if}
+							? m.online_status_connecting()
+							: m.online_status_closed()}
+				{#if !client.opponentConnected}{m.online_opponent_disconnected()}{/if}
 			</p>
 		</div>
 	</header>
 
 	{#if !view}
-		<p class="mission-card">対戦データを読み込んでいます…</p>
+		<p class="mission-card">{m.online_loading()}</p>
 	{:else}
-		<section class="score-strip" aria-label="対戦状況">
+		<section class="score-strip" aria-label={m.score_strip_label()}>
 			<div class="side-score enemy">
-				<span>相手</span><strong>{view.score[opponentSeat]}<small>/3P</small></strong>
+				<span>{m.seat_opponent()}</span><strong
+					>{view.score[opponentSeat]}<small>{m.score_suffix()}</small></strong
+				>
 			</div>
 			<div class="turn-status">
 				<i class:live={view.phase === 'playing'}></i>
 				<strong>
 					{view.phase === 'deployment'
-						? '布陣フェーズ'
+						? m.phase_deployment()
 						: view.phase === 'finished'
-							? '対局終了'
+							? m.phase_finished()
 							: view.activeSeat === mySeat
-								? 'あなたのターン'
-								: '相手のターン'}
+								? m.phase_your_turn()
+								: m.phase_opponent_turn()}
 				</strong>
-				<small>ROUND {view.round}</small>
+				<small>{m.round_only({ round: view.round })}</small>
 			</div>
 			<div class="side-score player">
-				<span>あなた</span><strong>{view.score[mySeat]}<small>/3P</small></strong>
+				<span>{m.seat_you()}</span><strong
+					>{view.score[mySeat]}<small>{m.score_suffix()}</small></strong
+				>
 			</div>
 		</section>
 
 		<div class="play-layout">
-			<section class="board-column" aria-label="ゲーム盤">
+			<section class="board-column" aria-label={m.board_region_label()}>
 				<div class="board" style={`--columns: ${view.board.width}`}>
 					{#each view.board.cells as cell (cell.id)}
 						{@const piece = boardPiece(cell.id)}
@@ -288,11 +298,14 @@
 							{#if piece}
 								<span class:ours={piece.owner === mySeat} class="croc">
 									<b>{definitionFor(piece.kind).shortName}</b>
-									<small>{piece.owner === mySeat ? 'YOU' : 'ENEMY'}</small>
+									<small
+										>{piece.owner === mySeat ? m.board_label_you() : m.board_label_enemy()}</small
+									>
 								</span>
 							{:else if draftKind}
 								<span class="croc ours draft"
-									><b>{definitionFor(draftKind).shortName}</b><small>配置</small></span
+									><b>{definitionFor(draftKind).shortName}</b><small>{m.board_draft_badge()}</small
+									></span
 								>
 							{/if}
 							{#if targetAction}<span class="action-hint">{targetAction.cost}</span>{/if}
@@ -302,7 +315,7 @@
 
 				<div class="vitality-bar">
 					<div>
-						<span>VITALITY</span>
+						<span>{m.panel_vitality()}</span>
 						<div class="pips">
 							<i class:filled={view.vitality[mySeat] >= 1}></i><i
 								class:filled={view.vitality[mySeat] >= 2}
@@ -310,7 +323,7 @@
 						</div>
 					</div>
 					<div class:urgent={remainingMs <= 10_000} class="clock">
-						<span>TIME</span><strong>{clockLabel()}</strong>
+						<span>{m.panel_time()}</span><strong>{clockLabel()}</strong>
 					</div>
 				</div>
 
@@ -322,15 +335,18 @@
 							type="button"
 							class="primary"
 							disabled={Object.keys(deployment).length !== 8 || submitting}
-							onclick={confirmDeployment}>布陣を確定 ({Object.keys(deployment).length}/8)</button
+							onclick={confirmDeployment}
+							>{m.action_confirm_deployment({ placed: Object.keys(deployment).length })}</button
 						>
 					{:else if view.phase === 'playing'}
-						<button type="button" class="secondary danger" onclick={resign}>投了</button>
+						<button type="button" class="secondary danger" onclick={resign}
+							>{m.action_resign()}</button
+						>
 						<button
 							type="button"
 							class="primary"
 							disabled={view.activeSeat !== mySeat || submitting}
-							onclick={finishTurn}>ターン終了</button
+							onclick={finishTurn}>{m.action_end_turn()}</button
 						>
 					{/if}
 				</div>
@@ -340,8 +356,12 @@
 				<div class="panel-heading">
 					<span>02</span>
 					<div>
-						<p>COMMAND</p>
-						<h2>{view.phase === 'deployment' ? 'ワニを選択' : '行動選択'}</h2>
+						<p>{m.panel_command_eyebrow()}</p>
+						<h2>
+							{view.phase === 'deployment'
+								? m.panel_command_deployment()
+								: m.panel_command_playing()}
+						</h2>
 					</div>
 				</div>
 				{#if view.phase === 'deployment'}
@@ -368,16 +388,16 @@
 									<strong>{candidate.label}</strong><small>{actionDestination(candidate)}</small>
 								</div></button
 							>
-						{:else}<p class="empty-state">残り活力で実行できる行動はありません。</p>{/each}
+						{:else}<p class="empty-state">{m.no_legal_actions()}</p>{/each}
 					</div>
 				{:else}
 					<div class="select-prompt">
-						<span>⌖</span><strong>自分のワニを選択</strong>
+						<span>⌖</span><strong>{m.select_prompt_title()}</strong>
 					</div>
 				{/if}
 
 				<div class="event-log">
-					<p>FIELD LOG</p>
+					<p>{m.panel_field_log()}</p>
 					<ol>
 						{#each client.log as message, index (`${index}:${message}`)}<li
 								class:latest={index === 0}
@@ -392,16 +412,19 @@
 		{#if client.finished}
 			<div class="result-backdrop">
 				<section class="result-card" aria-live="assertive">
-					<p>MATCH COMPLETE</p>
+					<p>{m.match_complete_eyebrow()}</p>
 					<h2>
 						{client.finished.winnerSeat === mySeat
-							? '勝利'
+							? m.result_win()
 							: client.finished.winnerSeat === null
-								? '引き分け'
-								: '敗北'}
+								? m.result_draw_long()
+								: m.result_loss()}
 					</h2>
 					<strong>{view.score[mySeat]} <span>—</span> {view.score[opponentSeat]}</strong>
-					<a class="primary" href={resolve('/play')}>もう一度対戦相手を探す</a>
+					<a class="primary" href={resolve('/play')}>{m.action_find_opponent_again()}</a>
+					<!-- 結果とリプレイは終局後にアーカイブされ、履歴から参照できる
+					     （doc/designs/07-durable-objects.md 9.2）。 -->
+					<a href={resolve('/history/[id]', { id: matchId })}>{m.match_result_replay_link()}</a>
 				</section>
 			</div>
 		{/if}

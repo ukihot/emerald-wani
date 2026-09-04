@@ -19,6 +19,11 @@ BETTER_AUTH_SECRET=""
 # workers/realtime/.dev.vars.example にも同じ値を設定すること（検証側が同じ鍵を要求する）。
 WS_TICKET_SECRET_V1=""
 
-# S-03: Turnstile のサーバ側検証（フェーズ5で使用）
+# S-03: Turnstile のサーバ側検証（フェーズ6で使用）
 # 未設定のあいだ、ゲスト発行の Bot 検証はスキップされる（開発用フォールバック）
 TURNSTILE_SECRET_KEY=""
+
+# S-04: トランザクションメール配送（Resend の API キー）。doc/email.md 参照。
+# ローカルでは未設定でよい。未設定のとき、確認メールとパスワード再設定メールは
+# 送信せず本文を標準出力へ出す（ENVIRONMENT=development のときだけ許可される）。
+RESEND_API_KEY=""

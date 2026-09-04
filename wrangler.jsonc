@@ -31,6 +31,16 @@
 		}
 	],
 
+	// R2: リプレイ。書き込みは realtime Worker（Queue consumer）だけが行い、
+	// web はここから読んで認可済みのユーザーへ配信する。バケットは公開しない
+	// （doc/designs/09-api-protocol.md 1節）。
+	"r2_buckets": [
+		{
+			"binding": "REPLAYS",
+			"bucket_name": "emerald-wani-replays"
+		}
+	],
+
 	// Durable Objects は realtime Worker 側で定義し、ここからは script_name で参照する。
 	// この分割理由は doc/designs/02-architecture.md 3.2（getPlatformProxy の制約）を参照。
 	"durable_objects": {
@@ -56,12 +66,20 @@
 	"vars": {
 		// 公開してよい値のみをここに置く。シークレットは .dev.vars / wrangler secret へ。
 		// （doc/designs/04-dev-environment.md 5.5 / doc/designs/13-secrets-lifecycle.md）
-		"ORIGIN": "http://localhost:5173"
+		"ORIGIN": "http://localhost:5173",
+
+		// メール送信元。ローカルでは配送業者を呼ばずログへ出す（doc/email.md）。
+		"EMAIL_FROM": "エメラルドワニ <no-reply@localhost>",
+
+		// development のときだけメール配送のログ出力フォールバックを許可する。
+		"ENVIRONMENT": "development"
 	}
 
 	// 以下はフェーズ進行に合わせて追加する（未使用のバインディングは意図的に置かない）:
-	//   - r2_buckets REPLAYS       : フェーズ5（リプレイ保存。doc/designs/21-roadmap.md）
-	//   - queues.producers         : フェーズ5（match-events）
 	//   - ratelimit バインディング  : フェーズ6（doc/designs/11-security-controls.md 11.4）
-	//   - triggers.crons           : フェーズ5（archive 再照合。doc/designs/03-tech-stack.md 4.3）
+	//
+	// Queue の producer / consumer と archive 再照合の Cron は realtime Worker 側に置く。
+	// 終局を検知するのも DO からログを取り出すのも realtime の責務であり、web に
+	// Queue バインディングを持たせる理由が無いため（doc/designs/03-tech-stack.md 4.3 の
+	// 「web Worker の定期実行」からの意図的な変更。理由は doc/designs/21-roadmap.md）。
 }

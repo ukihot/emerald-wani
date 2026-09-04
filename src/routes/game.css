@@ -770,3 +770,26 @@ h1 span {
 		transition-duration: 0.01ms !important;
 	}
 }
+
+/* ランディングからアカウント系の画面への導線（doc/designs/17-frontend.md 1節）。 */
+.landing-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-self: flex-end;
+	margin-left: auto;
+}
+.landing-nav a {
+	padding: 8px 14px;
+	border: 1px solid #24362d;
+	background: #07110cc7;
+	color: #cfe0d5;
+	font-size: 0.72rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-decoration: none;
+}
+.landing-nav a:hover {
+	border-color: #42e59b;
+	color: #e8fff3;
+}
