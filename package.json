@@ -6,6 +6,7 @@
 	"engines": {
 		"node": ">=22.12"
 	},
+	"packageManager": "pnpm@11.25.0",
 	"scripts": {
 		"dev": "run-p dev:web dev:realtime",
 		"dev:web": "vite dev --port 5173",

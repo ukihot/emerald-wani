@@ -4,25 +4,52 @@ on:
   pull_request:
   push:
     branches: [main]
+  # 依存の既知脆弱性は PR ごとに加えて週次でも見る（doc/designs/16-supply-chain.md 1.2）。
+  # 新しく公表された脆弱性は、こちらがコードを変えなくても増えるため。
+  schedule:
+    - cron: '0 3 * * 1'
 
 permissions:
   contents: read
 
+# 外部 Action はコミット SHA で固定する（doc/designs/16-supply-chain.md 2.1）。
+# タグはムーバブルで、付け替えによる乗っ取りを防げない。
+# 2026-09-16 に GitHub ホストランナーから Node 20 ランタイムが消えるため、
+# すべて Node 24 ランタイムの版に上げてある。
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # pnpm の版は package.json の "packageManager" から読む（ここには書かない）。
+      # 2か所に書くと必ず片方が古くなる。
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.12
+          node-version-file: .node-version
           cache: pnpm
+
       - run: pnpm install --frozen-lockfile
+
+      # ブラウザモードのコンポーネントテスト（vite.config.ts の client プロジェクト）が
+      # Chromium の実体を要求する。E2E は別途 playwright.config.ts。
+      - run: pnpm exec playwright install chromium --with-deps
+
+      # high 以上の既知脆弱性で失敗させる（doc/designs/16-supply-chain.md 1.2）。
+      # low / moderate では止めない（止めると常に赤くなり、誰も見なくなる）。
+      - run: pnpm audit --audit-level high
+
       - run: pnpm check
       - run: pnpm lint
+
+      # ルールエンジン・射影・プロトコル・過去版リプレイの互換
+      # （src/lib/protocol/replay-compat.spec.ts）まで含む。
       - run: pnpm test:unit -- --run
+
+      # web（vite build）と realtime（wrangler types + tsc）の両方をビルドする。
       - run: pnpm build
 
   secret-scan:
@@ -31,9 +58,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

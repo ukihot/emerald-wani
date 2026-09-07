@@ -1,0 +1,23 @@
+# 依存の更新を週次で PR にする（doc/designs/16-supply-chain.md 1.2）。
+# GitHub Actions も対象にする。SHA 固定は乗っ取り対策として有効だが、
+# 固定したまま放置すると脆弱性の修正も入らなくなるため、更新を機械に出させる。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # 個別に PR が飛ぶと確認しきれない。まとめて1本にし、
+      # メジャー更新だけは分けて中身を読む。
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
