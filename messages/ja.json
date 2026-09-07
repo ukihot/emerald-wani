@@ -270,5 +270,16 @@
 	"admin_report_review": "確認中にする",
 	"admin_report_actioned": "対処済みにする",
 	"admin_report_dismiss": "却下する",
-	"admin_audit_notice": "この画面の閲覧と操作はすべて admin_audit に記録されます。"
+	"admin_audit_notice": "この画面の閲覧と操作はすべて admin_audit に記録されます。",
+	"legal_eyebrow": "エメラルドワニ",
+	"terms_page_title": "利用規約 | エメラルドワニ",
+	"privacy_page_title": "プライバシーポリシー | エメラルドワニ",
+	"security_policy_page_title": "セキュリティポリシー | エメラルドワニ",
+	"contact_page_title": "お問い合わせ | エメラルドワニ",
+	"footer_nav_label": "規約とお問い合わせ",
+	"footer_beta_notice": "ベータ公開中です。データの消失や仕様の変更が起こりえます。",
+	"footer_terms": "利用規約",
+	"footer_privacy": "プライバシーポリシー",
+	"footer_security_policy": "セキュリティポリシー",
+	"footer_contact": "お問い合わせ"
 }

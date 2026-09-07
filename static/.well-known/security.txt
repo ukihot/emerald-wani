@@ -1,0 +1,8 @@
+# エメラルドワニ 脆弱性報告の窓口（RFC 9116）
+# Expires は年1回の更新が必要（期限切れ＝窓口不在）。pnpm verify:phase7 が
+# 残り30日を切ると失敗する。doc/deploy.md の「公開前チェック」を参照。
+Contact: mailto:emerald-wani@jocarium.productions
+Expires: 2027-09-07T00:00:00.000Z
+Preferred-Languages: ja, en
+Canonical: https://emerald-wani.jocarium.productions/.well-known/security.txt
+Policy: https://emerald-wani.jocarium.productions/security-policy

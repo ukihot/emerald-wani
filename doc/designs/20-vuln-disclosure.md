@@ -10,20 +10,25 @@
 
 [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116) に従い、次を静的アセットとして配信する。
 
+実装は [`static/.well-known/security.txt`](../../static/.well-known/security.txt)。
+
 ```
-Contact: mailto:security@<ドメイン>
-Expires: <1年後のISO8601日時>
+Contact: mailto:emerald-wani@jocarium.productions
+Expires: 2027-09-07T00:00:00.000Z
 Preferred-Languages: ja, en
-Canonical: https://<ドメイン>/.well-known/security.txt
-Policy: https://<ドメイン>/security-policy
+Canonical: https://emerald-wani.jocarium.productions/.well-known/security.txt
+Policy: https://emerald-wani.jocarium.productions/security-policy
 ```
 
+窓口は通常の問い合わせと**同じアドレス**にし、件名の `[security]` で仕分ける
+（フェーズ7の意図的な変更。[ロードマップ](./21-roadmap.md)）。
+
 - `Expires` があるため、**年1回の更新を運用タスクとして登録する**（期限切れは窓口不在と同義）。
-- `security@` は通常の問い合わせ窓口と分離し、受信を確実に監視する。
+  `pnpm verify:phase7` が残り30日を切ると失敗し、更新漏れを検知する。
 
 ### 1.2 公開ポリシー（`/security-policy`）
 
-次を明示する。
+実装は [`src/routes/security-policy/+page.svelte`](../../src/routes/security-policy/+page.svelte)。次を明示する。
 
 | 項目                   | 内容                                                                                       |
 | ---------------------- | ------------------------------------------------------------------------------------------ |

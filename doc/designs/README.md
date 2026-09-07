@@ -45,14 +45,18 @@
 
 ### 体験・運用・計画
 
-| ファイル                                   | 内容                                                                 |
-| ------------------------------------------ | -------------------------------------------------------------------- |
-| [17-frontend.md](./17-frontend.md)         | 画面構成、モノクローム＋エメラルドの配色方針、Svelte ネイティブ演出  |
-| [18-availability.md](./18-availability.md) | 障害対策、**RPO/RTO と復元試験**、環境分離、**サービス終了時の扱い** |
-| [../restore-drill.md](../restore-drill.md) | 復元試験の手順書と実施記録（四半期ごと）                             |
-| [19-testing.md](./19-testing.md)           | テスト方針、**セキュリティ要求とテストの対応（OWASP ASVS 参照）**    |
-| [21-roadmap.md](./21-roadmap.md)           | 実装フェーズと進捗                                                   |
-| [99-references.md](./99-references.md)     | 参考資料                                                             |
+| ファイル                                     | 内容                                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| [17-frontend.md](./17-frontend.md)           | 画面構成、モノクローム＋エメラルドの配色方針、Svelte ネイティブ演出  |
+| [18-availability.md](./18-availability.md)   | 障害対策、**RPO/RTO と復元試験**、環境分離、**サービス終了時の扱い** |
+| [../restore-drill.md](../restore-drill.md)   | 復元試験の手順書と実施記録（四半期ごと）                             |
+| [../incident-drill.md](../incident-drill.md) | 障害・インシデント対応訓練の手順と実施記録（四半期ごと）             |
+| [../load-test.md](../load-test.md)           | 負荷・耐性試験の測定値、判定基準、公開後の品質指標                   |
+| [../deploy.md](../deploy.md)                 | デプロイ手順（Cloudflare の GUI 作業、シークレット、ロールバック）   |
+| [../cost.md](../cost.md)                     | 料金と無料枠、消費モデル、予算アラートの目安                         |
+| [19-testing.md](./19-testing.md)             | テスト方針、**セキュリティ要求とテストの対応（OWASP ASVS 参照）**    |
+| [21-roadmap.md](./21-roadmap.md)             | 実装フェーズと進捗                                                   |
+| [99-references.md](./99-references.md)       | 参考資料                                                             |
 
 ### 章番号の見方
 

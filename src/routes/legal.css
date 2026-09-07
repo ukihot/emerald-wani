@@ -1,0 +1,91 @@
+/*
+ * 規約・ポリシー・窓口の共通スタイル（doc/designs/17-frontend.md 2節）。
+ * 4画面が同じ体裁になるようにここへ集約する。
+ */
+
+.legal-shell {
+	width: min(760px, 100%);
+	margin: 0 auto;
+	padding: 32px clamp(16px, 4vw, 40px) 40px;
+}
+
+.legal-shell h1 {
+	margin: 0 0 4px;
+	font-size: clamp(1.4rem, 3.4vw, 2rem);
+	font-weight: 900;
+	letter-spacing: -0.03em;
+}
+
+.legal-shell .eyebrow {
+	margin: 0;
+	color: #48d797;
+	font-size: 0.66rem;
+	font-weight: 800;
+	letter-spacing: 0.19em;
+}
+
+.legal-shell .updated {
+	margin: 0 0 24px;
+	color: #7f9188;
+	font-size: 0.74rem;
+}
+
+.legal-body {
+	color: #cbd8d0;
+	font-size: 0.86rem;
+	line-height: 1.85;
+}
+
+.legal-body :is(h2) {
+	margin: 32px 0 10px;
+	color: #e8eee9;
+	font-size: 1rem;
+	font-weight: 800;
+}
+
+.legal-body :is(h3) {
+	margin: 20px 0 6px;
+	color: #e8eee9;
+	font-size: 0.9rem;
+	font-weight: 700;
+}
+
+.legal-body :is(p, ul, ol, table) {
+	margin: 0 0 12px;
+}
+
+.legal-body :is(ul, ol) {
+	padding-left: 1.3em;
+}
+
+.legal-body li {
+	margin-bottom: 4px;
+}
+
+.legal-body table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.8rem;
+}
+
+.legal-body :is(th, td) {
+	padding: 7px 10px;
+	border: 1px solid #223129;
+	text-align: left;
+	vertical-align: top;
+}
+
+.legal-body th {
+	background: #0c1712;
+	color: #e8eee9;
+	font-weight: 700;
+}
+
+.legal-body a {
+	color: #6fe3ac;
+}
+
+.legal-body code {
+	color: #a9e7c8;
+	font-size: 0.94em;
+}

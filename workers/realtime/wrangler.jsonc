@@ -15,11 +15,12 @@
 
 	// web Worker と同じ D1 を参照する。database_id は必ず web 側と一致させること
 	// （ローカルでは同じ SQLite ファイルを共有するため）。
+	// 本番 = 0f43d043-…、ステージング = 2dc94590-4d7b-4c7a-90eb-d6aed221fee8。
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "emerald-wani-db",
-			"database_id": "00000000-0000-4000-8000-000000000001",
+			"database_id": "0f43d043-78ce-4a1a-9449-05f188cd4af7",
 			"migrations_dir": "../../drizzle"
 		}
 	],

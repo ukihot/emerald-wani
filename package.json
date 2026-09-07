@@ -34,6 +34,8 @@
 		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
 		"verify:phase5": "node scripts/verify-phase5.mjs",
 		"verify:phase6": "node scripts/verify-phase6.mjs",
+		"verify:phase7": "node scripts/verify-phase7.mjs",
+		"load-test": "node scripts/load-test.mjs",
 		"restore:drill": "node scripts/restore-drill.mjs"
 	},
 	"devDependencies": {

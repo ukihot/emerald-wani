@@ -4,12 +4,21 @@
 	import { locales, localizeHref } from '$lib/paraglide/runtime';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import SiteFooter from '$lib/components/SiteFooter.svelte';
 
 	let { children } = $props();
+
+	// 盤面を全画面で使う画面ではフッターを出さない。それ以外の画面には必ず出す
+	// （規約・ポリシー・窓口への導線を画面ごとに貼り忘れないため）。
+	const showFooter = $derived.by(() => {
+		const path = page.url.pathname.replace(/^\/(?:ja|en)(?=\/|$)/, '') || '/';
+		return !(path === '/' || /^\/(play|online|admin)(\/|$)/.test(path));
+	});
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 {@render children()}
+{#if showFooter}<SiteFooter />{/if}
 
 <div style="display:none">
 	{#each locales as locale (locale)}

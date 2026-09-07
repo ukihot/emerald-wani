@@ -73,8 +73,8 @@ SvelteKit（`@sveltejs/adapter-cloudflare`）のローカル開発は `platformP
 **ルーティング（本番）** — 同一オリジンを維持するため、ゾーン内で経路を分ける。
 
 ```
-emerald-wani.example/ws/*  ->  emerald-wani-realtime
-emerald-wani.example/*     ->  emerald-wani-web
+emerald-wani.jocarium.productions/ws/*  ->  emerald-wani-realtime
+emerald-wani.jocarium.productions/*     ->  emerald-wani-web
 ```
 
 同一オリジンにすることで CSP の `connect-src 'self'` が使え、Cookie の第三者送信も発生しない。

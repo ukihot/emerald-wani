@@ -20,13 +20,16 @@
 	},
 
 	// D1: ユーザ / デッキ / 戦績 / 監査（doc/designs/08-data-model.md）
-	// database_id はローカル開発用のプレースホルダ。実IDは `wrangler d1 create` 後に差し替える。
-	// realtime Worker 側と同じ値を使うこと（同じローカル SQLite を共有するため）。
+	// database_id は本番（emerald-wani-db）の実 ID。realtime Worker 側と必ず同じ値にすること。
+	// **ローカルの SQLite はこの ID ごとに分かれる。** ID を変えたら
+	// `pnpm db:migrate:local` を流し直さないと「no such table」になる。
+	// ステージング（emerald-wani-db-stg）は 2dc94590-4d7b-4c7a-90eb-d6aed221fee8。
+	// stg へデプロイするときは wrangler の環境ブロックを足して差し替える（doc/deploy.md）。
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "emerald-wani-db",
-			"database_id": "00000000-0000-4000-8000-000000000001",
+			"database_id": "0f43d043-78ce-4a1a-9449-05f188cd4af7",
 			"migrations_dir": "drizzle"
 		}
 	],

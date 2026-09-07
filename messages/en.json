@@ -270,5 +270,16 @@
 	"admin_report_review": "Mark as reviewing",
 	"admin_report_actioned": "Mark as actioned",
 	"admin_report_dismiss": "Dismiss",
-	"admin_audit_notice": "Every view and action on this screen is recorded in admin_audit."
+	"admin_audit_notice": "Every view and action on this screen is recorded in admin_audit.",
+	"legal_eyebrow": "Emerald Wani",
+	"terms_page_title": "Terms of Service | Emerald Wani",
+	"privacy_page_title": "Privacy Policy | Emerald Wani",
+	"security_policy_page_title": "Security Policy | Emerald Wani",
+	"contact_page_title": "Contact | Emerald Wani",
+	"footer_nav_label": "Policies and contact",
+	"footer_beta_notice": "Open beta. Data loss and breaking changes are possible.",
+	"footer_terms": "Terms of Service",
+	"footer_privacy": "Privacy Policy",
+	"footer_security_policy": "Security Policy",
+	"footer_contact": "Contact"
 }

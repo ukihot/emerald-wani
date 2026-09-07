@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import type { getDb } from '$lib/server/db';
 import { match, matchPlayer, playerProfile, user } from '$lib/server/db/schema';
 import { m } from '$lib/paraglide/messages';
@@ -227,10 +227,14 @@ export async function summarizeRecord(
 	db: ReturnType<typeof getDb>,
 	userId: string
 ): Promise<RecordSummary> {
+	// 無効試合（`void`）は戦績に計上しない（doc/designs/18-availability.md 15.5、
+	// doc/designs/15-incident-response.md 3節、利用規約5節）。結果を確定できない
+	// 対戦を勝敗に数えると、無効試合化そのものが救済にならない。
 	const rows = await db
 		.select({ result: matchPlayer.result, count: sql<number>`count(*)` })
 		.from(matchPlayer)
-		.where(eq(matchPlayer.userId, userId))
+		.innerJoin(match, eq(match.id, matchPlayer.matchId))
+		.where(and(eq(matchPlayer.userId, userId), ne(match.status, 'void')))
 		.groupBy(matchPlayer.result);
 
 	const summary: RecordSummary = { total: 0, wins: 0, losses: 0, draws: 0 };
