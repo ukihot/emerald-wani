@@ -12,12 +12,12 @@
 | 3   | 完了   | ローカルプロトタイプ | 対戦画面、布陣画面、CPU戦、盤面演出、アクセシビリティ                             | 1台のブラウザでCPU戦を最後まで遊べる                                |
 | 4   | 完了   | オンライン対戦       | MatchRoom / MatchQueue、WS認証、座席認可、同時布陣公開、再接続、Command/Eventログ | 2ブラウザで対戦が成立し、切断復帰と時間切れが正しく動く             |
 | 5   | 完了   | アカウントと履歴     | 本登録、匿名からの移行、戦績、リプレイ、通報、メール配送                          | ゲスト開始→本登録→対戦→履歴・リプレイ確認が通る                     |
-| 6   | 未着手 | セキュリティ強化     | レート制限、Turnstile、CSP、監査、監視、管理画面、復元試験                        | セキュリティテストと脅威モデルの受容記録が完了する                  |
+| 6   | 完了   | セキュリティ強化     | レート制限、Turnstile、CSP、監査、監視、管理画面、復元試験                        | セキュリティテストと脅威モデルの受容記録が完了する                  |
 | 7   | 未着手 | 公開準備             | 負荷・互換性試験、規約、ポリシー、窓口、ベータ                                    | 品質指標を測定でき、障害・インシデント対応を訓練済み                |
 
 ルールエンジン実装より先に、ルール本文の解釈事項とマップ仕様を確定する。盤面生成器はゲームバランスそのものなので、UIより先に大量 seed の自動検証と人手レビューを行う。
 
-## 完了証跡（2026-09-03）
+## 完了証跡（2026-09-03 / フェーズ6は 2026-09-07）
 
 - フェーズ0：D1初期マイグレーションを追加。`pnpm dev`でweb/realtimeを同時起動し、`pnpm verify:phase0`で匿名ユーザー、Cookie、セッションの一致を確認
 - フェーズ1：[盤面・初期化仕様](../board.md)へ9件の解釈事項を確定し、ルールブックの未決一覧を解消
@@ -26,6 +26,22 @@
 - フェーズ5：本登録（メール+パスワード）、確認メール・パスワード再設定（Resend／ローカルはログ出力へフォールバック。[メール配送](../email.md)）、匿名→本登録のデータ移行（`onLinkAccount` で `match_player` と `player_profile` を D1 バッチで付け替えてから匿名ユーザーを削除）、終局後アーカイブ（MatchRoom → Queue `match-events` → consumer → R2 リプレイ + D1 `match`/`match_player`、`archived` 確認後にログを掃除）、`/api/v1/me`・`/api/v1/matches`・`/api/v1/matches/{id}`・`/api/v1/matches/{id}/replay`・`/api/v1/reports`、画面（`/home`・`/signup`・`/login`・`/forgot-password`・`/reset-password`・`/history`・`/history/[id]`）を実装。UI 文言はすべて Paraglide のメッセージカタログ（`messages/{ja,en}.json`）へ移し、既存のフェーズ3・4画面も同時に移行した。`pnpm verify:phase5`（ゲスト2人で対局→投了→アーカイブ完了待ち→本登録→戦績移行→履歴・詳細・リプレイ取得→非参加者の404→通報）で終了条件を確認
 
 - フェーズ4：MatchRoom（hello認証・rev/actionId冪等化・布陣/ターンalarm・座席別射影）、MatchQueue（1ユーザ1エントリ・requestId冪等化・ペアリング）、WSチケット発行（`/api/v1/matches/{id}/ws-ticket`）、`/play`・`/online/[id]` を実装。`pnpm verify:phase4`（実WebSocketで2ゲストをmatchmaking→布陣→対局→投了まで駆動）で、座席別射影（布陣中の相手位置非開示）、同時公開、実時間約30秒のターン時間切れ自動発行、切断後の`lastRev`再接続、投了による終局と勝者判定を確認。既知の制約: MatchQueueの`alarm()`はSQL書き込みをawaitの前に集約する設計にしないとローカルSQLiteで`SQLITE_BUSY`が発生することを実機で確認し、対策済み（`workers/realtime/src/match-queue.ts`のコメント参照）。D1/R2への終局後アーカイブ、CPU練習戦のオンライン化、フレンド招待、レート制限バインディングはフェーズ5/6へ委譲
+
+- フェーズ6：**レート制限**（web に `RL_AUTH` / `RL_GUEST_BURST` / `RL_MATCHMAKING` / `RL_REPORT_WRITE` / `RL_WS_TICKET` / `RL_API_READ`、realtime に `RL_WS_UPGRADE` の `ratelimit` バインディング。API 側は hook 1か所で掛け、掛け忘れを作らない）、**Turnstile**（ゲスト発行・ログイン・本登録・再設定。`ENVIRONMENT=development` で鍵未設定のときだけ素通り。それ以外はフェイルクローズ）、**ゲスト発行の門**（`GuestIssuanceGuard` DO で 3件/時間。画面の form action と `POST /api/auth/sign-in/anonymous` の**両経路**を同じ関数に通す）、**CSP**（`kit.csp` の nonce 方式＋`hooks.server.ts` で 11.1 の残りのヘッダー。`/admin/**` は Turnstile の許可を外した厳格版）、**監査**（`security_event` / `admin_audit` を追加。IP と UA は日次ソルト付き HMAC のみ）、**監視**（重大度 error 以上を `ALERT_WEBHOOK_URL` へ通知）、**管理画面**（`/admin`：直近のセキュリティ事象と通報の一覧、通報の状態変更、閲覧自体の監査記録、`admin`+`twoFactor` プラグインで MFA 必須）、**復元試験**（週次 D1→R2 エクスポートの Cron と `pnpm restore:drill`。手順と実施記録は[復元試験](../restore-drill.md)）を実装。`pnpm verify:phase6`（ヘッダーと CSP／管理画面の 401・404・MFA 必須／ゲスト発行の3層／`security_event` に生 IP が無いこと／WS Upgrade のレート制限／週次エクスポート）と単体テスト（audit・turnstile・rate-limit・security-headers）で終了条件を確認。脅威モデルの受容記録は[脅威モデル 3節](./12-threat-model.md)
+
+## 設計文書からの意図的な変更（フェーズ6）
+
+| 箇所                                                                      | 文書の記述                               | 実装                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Bot 対策（[README](./README.md) D-14）                                    | better-auth の `captcha` プラグイン      | 自前の `verifyTurnstile` を form action の先頭で呼ぶ。認証画面は form actions から `auth.api.*` を直接呼んでおり `/api/auth/**` を通らないためプラグインの `onRequest` が発火せず、さらにゲスト発行はプラグインの対象外だから                    |
+| IP ハッシュのソルト（[鍵ライフサイクル](./13-secrets-lifecycle.md) S-06） | 「日次で自動ローテート」する秘密         | 秘密（`AUDIT_SALT_SECRET`）は固定し、**日付を HMAC の入力に混ぜて**日次ローテートを得る。秘密を毎日入れ替える仕組み（KV と回転ジョブ）を持たずに同じ性質（翌日以降の突き合わせ不能）が得られ、両ワーカーで同じ値を持てば同日内の相関も取れるため |
+| レート制限到達の記録（[監視](./14-observability.md) 1.1）                 | レート制限到達を監査ログへ記録           | WS Upgrade の拒否だけは `security_event` へ書かず Workers Logs のみに残す。最も安価に叩ける経路で、拒否のたびに D1 へ INSERT すると攻撃者が D1 の書き込み上限を削れてしまうため                                                                  |
+| ゲスト発行の IP 制限                                                      | IP 単位で常時適用                        | `ENVIRONMENT=development` **かつ** `cf-connecting-ip` が無いときだけ IP 基準の2層を飛ばす。ローカルでは全リクエストが同じキーへ潰れ、検証スクリプトを続けて回せなくなるため。ヘッダーの有無だけでは飛ばさない（本番の抜け道にしない）            |
+| 管理画面の権限操作                                                        | 役割変更・アカウント停止・セッション失効 | 画面には**通報の状態変更しか置かない**。段階4以上（停止）は人間の承認と記録様式が要るため（[監視](./14-observability.md) 4節）、1クリックで到達させない。役割の付与は D1 の直接更新で行う                                                        |
+
+フェーズ6で着手しなかったもの（フェーズ7以降）: フレンド招待（`match_invite`）と招待コードの総当たり対策、
+CPU 練習戦のオンライン化、確認メールの再送導線、Cloudflare の設定（Access・WAF・Rate Limiting Rules）の
+自動検証、`security_event` の保持期間超過分を削除する運用バッチ、通報頻度の上限と通報者の信頼度。
 
 ## 設計文書からの意図的な変更（フェーズ5）
 

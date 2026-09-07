@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { m } from '$lib/paraglide/messages';
+	import Turnstile, { resetTurnstile } from '$lib/components/Turnstile.svelte';
 	import type { ActionData, PageData } from './$types';
 	import '../account.css';
 
@@ -19,7 +20,17 @@
 		<p><a href={resolve('/forgot-password')}>{m.reset_restart()}</a></p>
 	{:else}
 		{#if form?.message}<p class="error" role="alert">{form.message}</p>{/if}
-		<form method="post" use:enhance class="card">
+		<form
+			method="post"
+			use:enhance={() =>
+				async ({ update }) => {
+					await update();
+					// トークンは単回使用。送信のたびに取り直す。
+					resetTurnstile();
+				}}
+			class="card"
+		>
+			<Turnstile />
 			<input type="hidden" name="token" value={data.token} />
 			<div class="field">
 				<label for="password">{m.field_new_password()}</label>

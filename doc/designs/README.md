@@ -49,6 +49,7 @@
 | ------------------------------------------ | -------------------------------------------------------------------- |
 | [17-frontend.md](./17-frontend.md)         | 画面構成、モノクローム＋エメラルドの配色方針、Svelte ネイティブ演出  |
 | [18-availability.md](./18-availability.md) | 障害対策、**RPO/RTO と復元試験**、環境分離、**サービス終了時の扱い** |
+| [../restore-drill.md](../restore-drill.md) | 復元試験の手順書と実施記録（四半期ごと）                             |
 | [19-testing.md](./19-testing.md)           | テスト方針、**セキュリティ要求とテストの対応（OWASP ASVS 参照）**    |
 | [21-roadmap.md](./21-roadmap.md)           | 実装フェーズと進捗                                                   |
 | [99-references.md](./99-references.md)     | 参考資料                                                             |

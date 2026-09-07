@@ -84,6 +84,17 @@
 - 片方が確定しただけでは配置を公開せず、両者確定後に同じ rev で同時公開する。
 - `archive_state = archived` になるまで DO の状態を削除しない。
 
+フェーズ6で追加した検証（`pnpm test:unit` と `pnpm verify:phase6`）:
+
+- 全応答に[11.1](./11-security-controls.md)のヘッダーが付き、CSP の `script-src` が nonce 方式のままで `unsafe-inline` を含まない。
+- `/admin/**` の CSP から Turnstile の許可が外れ、`frame-src` が `'none'` になる。
+- 管理画面は未認証で 401、一般利用者・ゲストで 404、役割を持っていても **MFA 未設定なら入れない**。
+- ゲスト発行は Turnstile → バースト（3/60秒） → 1時間3件の順に止まり、**画面経由と `/api/auth/sign-in/anonymous` の両方**に同じ門が掛かる。
+- `security_event` に**生 IP・生 User-Agent が保存されない**（ハッシュは日次で変わり、同じ入力でも翌日は別の値になる）。
+- Turnstile の検証は、鍵が無い `development` でだけ素通りし、それ以外は**未設定・到達不能でも拒否**する（フェイルクローズ）。
+- WebSocket の Upgrade 要求に IP 単位の粗いレート制限が掛かる。
+- 週次エクスポート（D1 → R2）が Cron で走り、[復元試験](../restore-drill.md)の手順で書き戻せる。
+
 ## 5. CI
 
 PRごとに型検査、lint、単体・プロパティ・コンポーネントテスト、依存関係監査を行う。main へのマージ後に Worker 統合テスト、夜間に E2E と過去版リプレイ互換テストを行う。公開前には同時対戦、再接続集中、大量の無効操作、盤面生成集中、ログ書き出しを負荷試験する。

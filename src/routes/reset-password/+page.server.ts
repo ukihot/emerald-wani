@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
 import type { Actions, PageServerLoad } from './$types';
 import { m } from '$lib/paraglide/messages';
+import { authGate } from '$lib/server/auth-gate';
 
 /**
  * 新しいパスワードの設定。メールのリンクから `?token=…` 付きで到達する。
@@ -27,6 +28,9 @@ export const actions = {
 			return fail(400, { message: m.error_password_too_short({ min: MIN_PASSWORD_LENGTH }) });
 		}
 
+		const gate = await authGate(event, form, token, 'password_reset');
+		if (gate) return gate;
+
 		try {
 			// better-auth はトークンを消費し、当該ユーザーの他セッションも失効させる
 			// （doc/designs/10-auth-and-access.md 10.2）。
@@ -36,6 +40,9 @@ export const actions = {
 			});
 		} catch (error) {
 			if (error instanceof APIError) {
+				if (error.body?.code === 'PASSWORD_COMPROMISED') {
+					return fail(400, { message: m.error_password_compromised() });
+				}
 				return fail(400, { message: m.error_reset_expired() });
 			}
 			console.error('password reset failed', error);

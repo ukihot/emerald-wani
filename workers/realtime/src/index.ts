@@ -16,6 +16,8 @@ import {
 	findUnarchivedMatchIds,
 	type ArchiveJob
 } from './archive';
+import { auditAndAlert, clientIp, hashSignal } from '$protocol/audit';
+import { exportTables } from './export';
 
 export { MatchRoom } from './match-room';
 export { MatchQueue } from './match-queue';
@@ -59,8 +61,27 @@ export default {
 			return new Response('Expected websocket', { status: 426 });
 		}
 
-		// TODO(フェーズ6): IP 単位の粗いレート制限を ratelimit バインディングで追加する
-		// （doc/designs/11-security-controls.md 11.4）。チケットの正当性はここでは見ない。
+		// IP 単位の粗いレート制限（doc/designs/11-security-controls.md 11.4）。
+		// Upgrade 要求そのものの頻度だけを見る。チケットの正当性は DO が見る。
+		// キーは日次ソルト付きの IP ハッシュ（生 IP は使わない）。
+		//
+		// ここで拒否した分は `security_event` へ書かない。この経路は最も安価に叩ける
+		// ため、拒否のたびに D1 へ INSERT すると攻撃者が D1 の1日の書き込み上限を
+		// 削れてしまう。Workers Logs には残す（doc/designs/14-observability.md 3節）。
+		const ipHash = await hashSignal(
+			env.AUDIT_SALT_SECRET ?? 'development-audit-salt',
+			clientIp(request.headers)
+		);
+		if (env.RL_WS_UPGRADE && ipHash) {
+			const { success } = await env.RL_WS_UPGRADE.limit({ key: ipHash });
+			if (!success) {
+				console.warn('ws upgrade rate limited', ipHash);
+				return new Response('Too Many Requests', {
+					status: 429,
+					headers: { 'Retry-After': '60' }
+				});
+			}
+		}
 
 		// 未検証のまま DO へ転送する。認証は DO 側の `hello` で行う。
 		const stub = env.MATCH_ROOM.get(env.MATCH_ROOM.idFromName(matchId));
@@ -100,7 +121,24 @@ export default {
 	 * 永続化の失敗に直結しないよう、D1 の `match.replay_key IS NULL` を定期的に
 	 * 直接スキャンして再試行する。
 	 */
-	async scheduled(_event: ScheduledController, env: Env): Promise<void> {
+	async scheduled(event: ScheduledController, env: Env): Promise<void> {
+		// 週次: D1 の主要テーブルを R2 へ書き出す（doc/designs/18-availability.md 15.2）。
+		// Time Travel（無料プランは7日）を超える期間の復旧元になる。
+		if (event.cron === WEEKLY_EXPORT_CRON) {
+			try {
+				const summary = await exportTables(env);
+				console.info('weekly export', summary.prefix, summary.rows);
+			} catch (error) {
+				console.error('weekly export failed', error);
+				await auditAndAlert(env.DB, env.ALERT_WEBHOOK_URL, {
+					type: 'archive_failed',
+					severity: 'error',
+					detail: { at: 'weekly_export', message: String(error) }
+				});
+			}
+			return;
+		}
+
 		const pending = await findUnarchivedMatchIds(env, Date.now(), ARCHIVE_RETRY_MIN_AGE_MS);
 		if (pending.length === 0) return;
 
@@ -117,6 +155,9 @@ export default {
 		}
 	}
 } satisfies ExportedHandler<Env, ArchiveJob>;
+
+/** 週次エクスポートの cron 式（wrangler.jsonc の triggers.crons と一致させること）。 */
+const WEEKLY_EXPORT_CRON = '0 4 * * 1';
 
 /**
  * Cron が再試行の対象にするまでの猶予。終局直後は consumer が処理中の可能性が高く、

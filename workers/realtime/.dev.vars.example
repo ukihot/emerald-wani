@@ -1,3 +1,6 @@
 # cp workers/realtime/.dev.vars.example workers/realtime/.dev.vars
 # 値は repo ルートの .dev.vars と同じ WS_TICKET_SECRET_V1 にすること。
 WS_TICKET_SECRET_V1=""
+
+# S-06: 監査ログのハッシュソルト。repo ルートの .dev.vars と同じ値にすること。
+AUDIT_SALT_SECRET=""

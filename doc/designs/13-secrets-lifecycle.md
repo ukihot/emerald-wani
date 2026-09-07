@@ -13,9 +13,17 @@
 | S-03 | `TURNSTILE_SECRET_KEY`         | Turnstile siteverify                                                                    | web Worker の Secrets                     | stg / prod 個別         | Cloudflare 側で再発行可能。年1回 | Bot 対策の迂回（トークン検証の偽装は不可だが、鍵の悪用で自サイト以外での検証消費が起こりうる） |
 | S-04 | メール配送 API キー            | 確認・再設定メールの送信（[認証・認可設計](./10-auth-and-access.md)）                   | web Worker の Secrets                     | stg / prod 個別         | 90日                             | 自ドメインを騙るメール送信（フィッシングへの悪用）                                             |
 | S-05 | `CLOUDFLARE_API_TOKEN`（CI用） | CI からのデプロイ、D1 マイグレーション                                                  | GitHub Actions の Environment secrets     | prod 用は保護環境に限定 | 90日                             | インフラ全体の掌握（T-INFRA-02）                                                               |
-| S-06 | IP ハッシュ用日次ソルト        | `ip_hash` の生成（[データモデル](./08-data-model.md)）                                  | Worker の Secrets または KV               | stg / prod 個別         | **日次で自動ローテート**         | 過去の IP ハッシュに対する逆引き（レインボーテーブル攻撃）が容易になる                         |
+| S-06 | `AUDIT_SALT_SECRET`            | `ip_hash` / `ua_hash` の生成（[データモデル](./08-data-model.md)）                      | **両 Worker** の Secrets                  | stg / prod 個別         | 180日、または漏えい時即時        | 過去の IP ハッシュに対する逆引き（レインボーテーブル攻撃）が容易になる                         |
+| S-07 | `ALERT_WEBHOOK_URL`            | 重大度 error 以上の通知先（[監視](./14-observability.md) 3節）                          | web Worker の Secrets（realtime も同値）  | stg / prod 個別         | 通知先の再発行時                 | 第三者が偽の警告を運営チャンネルへ流し込める（実害は限定的だが調査を妨げる）                   |
 
 `.dev.vars` に入るローカル開発用の値は、**本番と異なるダミー値**とする。本番の値をローカルへコピーしない（[開発環境](./04-dev-environment.md)）。
+
+**S-06 の「日次ローテート」の実装（フェーズ6）**: 秘密そのものを毎日入れ替えるのではなく、
+`HMAC(AUDIT_SALT_SECRET, "audit-v1|<UTCの日付>|<値>")` のように**日付を入力へ混ぜる**。
+翌日以降は同じ IP でも別のハッシュになるため「長期追跡ができない」という目的は同じまま満たせて、
+秘密を回転させる仕組み（KV と回転ジョブ）を持たずに済む。両 Worker に同じ値を投入すれば、
+同日内なら web と realtime のログを突き合わせられる。用途を混ぜないよう接頭辞で分離している
+（実装は `src/lib/protocol/audit.ts`）。
 
 ## 2. 鍵識別子（kid）と併用期間
 

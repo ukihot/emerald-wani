@@ -34,8 +34,12 @@ export default defineConfig(
 		}
 	},
 	{
-		// Override or add rule settings here, such as:
-		// 'svelte/button-has-type': 'error'
-		rules: {}
+		files: ['**/*.svelte'],
+		rules: {
+			// {@html} は使わない（doc/designs/11-security-controls.md 11.6）。
+			// Svelte の既定のエスケープに任せる。表示名や通報理由など、利用者由来の
+			// 文字列が DOM 構造として解釈される経路をそもそも作らない。
+			'svelte/no-at-html-tags': 'error'
+		}
 	}
 );

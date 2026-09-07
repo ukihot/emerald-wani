@@ -31,6 +31,7 @@ import {
 import { REPLAY_FORMAT_VERSION, type ReplayEntry, type ReplayHeader } from '$protocol/replay';
 import { secretsFromEnv, verifyTicket } from '$protocol/ws-ticket';
 import { upsertMatchResult } from './archive';
+import { auditAndAlert, type SecurityEventType } from '$protocol/audit';
 
 /**
  * MatchRoom — 1試合につき1つ割り当てる Durable Object。対戦状態の「正」を保持する。
@@ -50,8 +51,10 @@ import { upsertMatchResult } from './archive';
  *   - 終局後のアーカイブ（D1 への結果書き込み、Queue 送出、/internal/export、
  *     /internal/archive-complete、archived 確認後の掃除）
  *
+ * フェーズ6で追加したもの:
+ *   - WS 認証失敗と無効メッセージ連発の `security_event` への記録
+ *
  * まだ実装していないもの:
- *   - security_event への異常系の永続化（フェーズ6。今は console.error のみ）
  *   - CPU練習戦（座席1をCPUにする /internal/init の mode='cpu'）
  */
 
@@ -483,11 +486,15 @@ export class MatchRoom extends DurableObject<Env> {
 		const secrets = secretsFromEnv(this.env as unknown as Record<string, unknown>);
 		const result = await verifyTicket(envelope.ticket, secrets, now);
 		if (!result.ok) {
+			// 署名不一致・期限切れ・未知の kid。鍵の推測試行の可能性があるため必ず残す
+			// （doc/designs/13-secrets-lifecycle.md 2節、doc/designs/14-observability.md 2.2）。
+			await this.recordSecurity('ws_auth_failed', { reason: result.reason });
 			ws.close(4001, `invalid ticket: ${result.reason}`);
 			return;
 		}
 		const { payload } = result;
 		if (payload.mid !== attachment.matchId) {
+			await this.recordSecurity('ws_auth_failed', { reason: 'match_mismatch' }, payload.uid);
 			ws.close(4001, 'ticket match mismatch');
 			return;
 		}
@@ -496,6 +503,7 @@ export class MatchRoom extends DurableObject<Env> {
 			.exec<{ jti: string }>(`SELECT jti FROM used_ticket WHERE jti = ?`, payload.jti)
 			.toArray()[0];
 		if (alreadyUsed) {
+			await this.recordSecurity('ws_auth_failed', { reason: 'ticket_reused' }, payload.uid);
 			ws.close(4001, 'ticket already used');
 			return;
 		}
@@ -504,6 +512,7 @@ export class MatchRoom extends DurableObject<Env> {
 			.exec<SeatRow>(`SELECT * FROM seat WHERE seat = ?`, payload.seat)
 			.toArray()[0];
 		if (!seatRow || seatRow.user_id !== payload.uid) {
+			await this.recordSecurity('ws_auth_failed', { reason: 'not_participant' }, payload.uid);
 			ws.close(4003, 'not a participant');
 			return;
 		}
@@ -1145,10 +1154,30 @@ export class MatchRoom extends DurableObject<Env> {
 		this.invalidStreaks.set(attachment.connId, count);
 		this.send(ws, { t: 'error', code: 'E_MALFORMED', message: '不正なメッセージです' });
 		if (count >= MAX_CONSECUTIVE_INVALID) {
-			// TODO(フェーズ5+6): security_event へ記録する（doc/designs/14-observability.md）。
 			console.error('MatchRoom: too many invalid messages, closing', attachment.connId);
+			// 記録は待たない（切断を遅らせない）。DO の実行は close 後も継続する。
+			void this.recordSecurity('ws_invalid_flood', { count }, attachment.userId);
 			ws.close(1008, 'too many invalid messages');
 		}
+	}
+
+	/**
+	 * `security_event` へ1件残す（doc/designs/14-observability.md 1節）。
+	 *
+	 * DO はリクエストヘッダーを持ち越さないため `ip_hash` / `ua_hash` は付けない。
+	 * 相関は `user_id` と `match_id` で取る。記録の失敗は対戦を止めない。
+	 */
+	private async recordSecurity(
+		type: SecurityEventType,
+		detail: Record<string, unknown>,
+		userId?: string | null
+	): Promise<void> {
+		await auditAndAlert(this.env.DB, this.env.ALERT_WEBHOOK_URL, {
+			type,
+			severity: 'warn',
+			userId: userId ?? null,
+			detail: { ...detail, matchId: this.readMatchState()?.match_id ?? null }
+		});
 	}
 
 	private checkRate(connId: string): boolean {

@@ -20,6 +20,28 @@ export default defineConfig({
 			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 			adapter: adapter(),
 
+			// CSP（doc/designs/11-security-controls.md 11.1）。script-src は nonce 方式を
+			// 崩さず、style-src にだけ 'unsafe-inline' を許す（Svelte のトランジションが
+			// 動的なインライン <style> を作るため。SvelteKit 公式の明記どおり）。
+			// Turnstile は challenges.cloudflare.com を script-src と frame-src の両方に
+			// 必要とする。管理画面ではこの許可を hooks.server.ts で外す。
+			csp: {
+				mode: 'nonce',
+				directives: {
+					'default-src': ['none'],
+					'script-src': ['self', 'https://challenges.cloudflare.com'],
+					'style-src': ['self', 'unsafe-inline'],
+					'frame-src': ['https://challenges.cloudflare.com'],
+					'img-src': ['self', 'data:'],
+					'connect-src': ['self'],
+					'font-src': ['self'],
+					'frame-ancestors': ['none'],
+					'base-uri': ['none'],
+					'form-action': ['self'],
+					'object-src': ['none']
+				}
+			},
+
 			typescript: {
 				config: (config) => {
 					config.include.push('../drizzle.config.ts');

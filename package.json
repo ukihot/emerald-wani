@@ -32,7 +32,9 @@
 		"deploy:web": "vite build && wrangler deploy",
 		"deploy:realtime": "wrangler deploy -c workers/realtime/wrangler.jsonc",
 		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
-		"verify:phase5": "node scripts/verify-phase5.mjs"
+		"verify:phase5": "node scripts/verify-phase5.mjs",
+		"verify:phase6": "node scripts/verify-phase6.mjs",
+		"restore:drill": "node scripts/restore-drill.mjs"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^5.20260903.1",

@@ -3,6 +3,7 @@ import { APIError } from 'better-auth/api';
 import type { Actions, PageServerLoad } from './$types';
 import { isGuest } from '$lib/server/api/identity';
 import { m } from '$lib/paraglide/messages';
+import { authGate } from '$lib/server/auth-gate';
 
 /**
  * 本登録（doc/designs/10-auth-and-access.md 10.1）。
@@ -42,6 +43,9 @@ export const actions = {
 			});
 		}
 
+		const gate = await authGate(event, form, email, 'signup');
+		if (gate) return gate;
+
 		try {
 			await event.locals.auth.api.signUpEmail({
 				body: { email, password, name },
@@ -49,6 +53,11 @@ export const actions = {
 			});
 		} catch (error) {
 			if (error instanceof APIError) {
+				// 流出済みパスワード（haveIBeenPwned プラグイン）はここで弾かれる。
+				// 理由が分かる文言を返す（利用者が直せない汎用文言にしない）。
+				if (error.body?.code === 'PASSWORD_COMPROMISED') {
+					return fail(400, { email, name, message: m.error_password_compromised() });
+				}
 				// better-auth の文言（英語）をそのまま出さず、こちらのカタログから返す。
 				return fail(400, { email, name, message: m.error_signup_failed() });
 			}

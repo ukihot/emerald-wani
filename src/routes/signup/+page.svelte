@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { m } from '$lib/paraglide/messages';
+	import Turnstile, { resetTurnstile } from '$lib/components/Turnstile.svelte';
 	import type { ActionData, PageData } from './$types';
 	import '../account.css';
 
@@ -21,7 +22,17 @@
 
 	{#if form?.message}<p class="error" role="alert">{form.message}</p>{/if}
 
-	<form method="post" use:enhance class="card">
+	<form
+		method="post"
+		use:enhance={() =>
+			async ({ update }) => {
+				await update();
+				// トークンは単回使用。送信のたびに取り直す。
+				resetTurnstile();
+			}}
+		class="card"
+	>
+		<Turnstile />
 		<div class="field">
 			<label for="name">{m.field_display_name()}</label>
 			<input
@@ -29,7 +40,7 @@
 				name="name"
 				required
 				maxlength="24"
-				value={form?.name ?? data.suggestedName}
+				value={form && 'name' in form ? form.name : data.suggestedName}
 			/>
 		</div>
 		<div class="field">
@@ -40,7 +51,7 @@
 				type="email"
 				required
 				autocomplete="email"
-				value={form?.email ?? ''}
+				value={form && 'email' in form ? form.email : ''}
 			/>
 			<small>{m.signup_email_help()}</small>
 		</div>

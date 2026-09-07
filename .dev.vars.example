@@ -19,11 +19,23 @@ BETTER_AUTH_SECRET=""
 # workers/realtime/.dev.vars.example にも同じ値を設定すること（検証側が同じ鍵を要求する）。
 WS_TICKET_SECRET_V1=""
 
-# S-03: Turnstile のサーバ側検証（フェーズ6で使用）
-# 未設定のあいだ、ゲスト発行の Bot 検証はスキップされる（開発用フォールバック）
+# S-03: Turnstile のサーバ側検証。ゲスト発行・ログイン・本登録・パスワード再設定で使う。
+# 未設定のあいだ Bot 検証はスキップされる。**ENVIRONMENT=development のときだけ**の
+# フォールバックで、それ以外の環境では未設定＝全拒否になる（フェイルクローズ）。
+# 対になる公開サイトキーは wrangler.jsonc の PUBLIC_TURNSTILE_SITE_KEY（公開値）。
 TURNSTILE_SECRET_KEY=""
 
 # S-04: トランザクションメール配送（Resend の API キー）。doc/email.md 参照。
 # ローカルでは未設定でよい。未設定のとき、確認メールとパスワード再設定メールは
 # 送信せず本文を標準出力へ出す（ENVIRONMENT=development のときだけ許可される）。
 RESEND_API_KEY=""
+
+# 重大度 error 以上のセキュリティ事象の通知先（Slack Incoming Webhook 等）。
+# 未設定なら通知しない（記録は D1 の security_event に残る）。
+# doc/designs/14-observability.md 3節。
+ALERT_WEBHOOK_URL=""
+
+# S-06: 監査ログの ip_hash / ua_hash に使うソルト（日付を混ぜて日次ローテートする）。
+# workers/realtime/.dev.vars にも同じ値を設定すること（両ワーカーで突き合わせるため）。
+# 未設定ならローカル用の固定値へフォールバックする。
+AUDIT_SALT_SECRET=""

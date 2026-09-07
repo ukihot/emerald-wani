@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { m } from '$lib/paraglide/messages';
+	import Turnstile, { resetTurnstile } from '$lib/components/Turnstile.svelte';
 	import type { ActionData, PageData } from './$types';
 	import { formatDateTime, resultLabel } from '$lib/i18n/match-labels';
 	import '../account.css';
@@ -21,7 +22,17 @@
 		<div class="card">
 			<h2>{m.home_start_heading()}</h2>
 			<p class="lead">{m.home_start_detail()}</p>
-			<form method="post" action="?/playAsGuest" use:enhance>
+			<form
+				method="post"
+				action="?/playAsGuest"
+				use:enhance={() =>
+					async ({ update }) => {
+						await update();
+						// トークンは単回使用。送信のたびに取り直す。
+						resetTurnstile();
+					}}
+			>
+				<Turnstile />
 				<div class="form-actions">
 					<button type="submit" class="primary">{m.home_play_as_guest()}</button>
 					<a href={resolve('/login')}>{m.nav_login()}</a>

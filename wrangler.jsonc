@@ -63,6 +63,20 @@
 		]
 	},
 
+	// レート制限バインディング（doc/designs/11-security-controls.md 11.4）。
+	// **バースト制限にしか使えない**: period は 10 か 60 秒のみ、カウンタは
+	// ロケーションごとに独立した eventually consistent な実装。厳密な時間窓
+	// （ゲスト発行 3件/時間）は GUEST_GUARD の DO が担当する。
+	// namespace_id は Worker 内で一意な任意の識別子（Cloudflare 側で作成不要）。
+	"ratelimits": [
+		{ "name": "RL_AUTH", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+		{ "name": "RL_GUEST_BURST", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } },
+		{ "name": "RL_MATCHMAKING", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } },
+		{ "name": "RL_REPORT_WRITE", "namespace_id": "1004", "simple": { "limit": 10, "period": 60 } },
+		{ "name": "RL_WS_TICKET", "namespace_id": "1005", "simple": { "limit": 20, "period": 60 } },
+		{ "name": "RL_API_READ", "namespace_id": "1006", "simple": { "limit": 300, "period": 60 } }
+	],
+
 	"vars": {
 		// 公開してよい値のみをここに置く。シークレットは .dev.vars / wrangler secret へ。
 		// （doc/designs/04-dev-environment.md 5.5 / doc/designs/13-secrets-lifecycle.md）
@@ -71,12 +85,15 @@
 		// メール送信元。ローカルでは配送業者を呼ばずログへ出す（doc/email.md）。
 		"EMAIL_FROM": "エメラルドワニ <no-reply@localhost>",
 
-		// development のときだけメール配送のログ出力フォールバックを許可する。
-		"ENVIRONMENT": "development"
+		// development のときだけメール配送のログ出力フォールバックと、
+		// Turnstile 未設定での素通りを許可する（doc/designs/11-security-controls.md 11.4）。
+		"ENVIRONMENT": "development",
+
+		// Turnstile のサイトキー（公開値）。空ならウィジェットを描画せず、サーバ側の
+		// 検証も飛ばす（development のときのみ）。本番・ステージングでは必ず入れる。
+		"PUBLIC_TURNSTILE_SITE_KEY": ""
 	}
 
-	// 以下はフェーズ進行に合わせて追加する（未使用のバインディングは意図的に置かない）:
-	//   - ratelimit バインディング  : フェーズ6（doc/designs/11-security-controls.md 11.4）
 	//
 	// Queue の producer / consumer と archive 再照合の Cron は realtime Worker 側に置く。
 	// 終局を検知するのも DO からログを取り出すのも realtime の責務であり、web に

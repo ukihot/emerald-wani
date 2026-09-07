@@ -6,4 +6,8 @@
 interface Env {
 	/** WSチケット署名鍵（kid付き複数世代。現状は v1 のみ）。 */
 	WS_TICKET_SECRET_V1: string;
+	/** 監査ログの ip_hash / ua_hash 用ソルト（S-06）。web Worker と同じ値。 */
+	AUDIT_SALT_SECRET?: string;
+	/** 重大度 error 以上の通知先（Slack Incoming Webhook 等）。未設定なら通知しない。 */
+	ALERT_WEBHOOK_URL?: string;
 }

@@ -52,9 +52,18 @@
 	// Queues 無料プランの保持期間（24時間）を踏まえたアーカイブ再試行のフォールバック。
 	// D1 の match.replay_key IS NULL を1時間ごとに直接スキャンする
 	// （doc/designs/03-tech-stack.md 4.3）。
+	// 毎時: アーカイブ再試行のフォールバック。
+	// 毎週月曜 04:00 UTC: D1 の主要テーブルを R2 へ書き出す
+	// （doc/designs/18-availability.md 15.2。src/index.ts が cron 式で分岐する）。
 	"triggers": {
-		"crons": ["0 * * * *"]
+		"crons": ["0 * * * *", "0 4 * * 1"]
 	},
+
+	// WebSocket の Upgrade 要求そのものの粗い制限（doc/designs/11-security-controls.md 11.2）。
+	// キーは日次ソルト付きの IP ハッシュ。チケットの正当性は MatchRoom DO が見る。
+	"ratelimits": [
+		{ "name": "RL_WS_UPGRADE", "namespace_id": "2001", "simple": { "limit": 30, "period": 60 } }
+	],
 
 	// DO の実体はこのワーカーが持つ（doc/designs/07-durable-objects.md 9.1）。
 	"durable_objects": {

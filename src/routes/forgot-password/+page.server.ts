@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
 import type { Actions } from './$types';
 import { m } from '$lib/paraglide/messages';
+import { authGate } from '$lib/server/auth-gate';
 
 /**
  * パスワード再設定の要求（doc/designs/10-auth-and-access.md 10.1）。
@@ -14,6 +15,9 @@ export const actions = {
 		const form = await event.request.formData();
 		const email = form.get('email')?.toString().trim() ?? '';
 		if (!email) return fail(400, { message: m.error_email_required() });
+
+		const gate = await authGate(event, form, email, 'password_reset_request');
+		if (gate) return gate;
 
 		try {
 			await event.locals.auth.api.requestPasswordReset({

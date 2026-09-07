@@ -3,6 +3,9 @@ import { betterAuth } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { anonymous } from 'better-auth/plugins/anonymous';
+import { admin } from 'better-auth/plugins/admin';
+import { twoFactor } from 'better-auth/plugins/two-factor';
+import { haveIBeenPwned } from 'better-auth/plugins/haveibeenpwned';
 import { getRequestEvent } from '$app/server';
 import type { D1Database } from '@cloudflare/workers-types';
 import { eq } from 'drizzle-orm';
@@ -22,8 +25,14 @@ import {
  *
  * フェーズ5（アカウントと履歴）で `anonymous` に加え、メール+パスワードの本登録、
  * 確認メール、パスワード再設定、匿名からのデータ移行を有効化した。
- * `admin` / `twoFactor` / `captcha` / `haveibeenpwned` はフェーズ6（セキュリティ強化）
- * で追加する（doc/designs/21-roadmap.md）。
+ *
+ * フェーズ6（セキュリティ強化）で `admin`（役割・アカウント停止）、`twoFactor`
+ * （管理者の MFA 必須化。doc/designs/10-auth-and-access.md 10.4）、`haveIBeenPwned`
+ * （流出パスワードの拒否。T-AUTH-01）を追加した。Turnstile は `captcha` プラグインを
+ * 使わない: 認証画面は SvelteKit の form actions から `auth.api.*` を直接呼んでおり、
+ * `/api/auth/**` を通らないため同プラグインの `onRequest` が発火しない。加えてゲスト
+ * 発行にも Turnstile を掛ける必要があり、その経路はプラグインの対象外である。
+ * 代わりに `$lib/server/turnstile.ts` の検証を各 form action の先頭で呼ぶ。
  *
  * 重要な前提: ゲストは「検証の緩い経路」ではなく **匿名の認証済みユーザー** である。
  * 認可・不正対策・監査は本登録ユーザーと同一に適用する
@@ -160,6 +169,18 @@ export const createAuth = (d1: D1Database, baseURL: string) => {
 					});
 				}
 			}),
+			// 役割（user / moderator / admin）とアカウント停止（doc/designs/10-auth-and-access.md 10.4）。
+			// 役割の付与は D1 を直接更新して行う（管理画面から役割を配れる導線は作らない）。
+			admin({ defaultRole: 'user', adminRoles: ['admin'] }),
+
+			// 管理者の MFA。管理画面は `twoFactorEnabled` が真の管理者しか通さない
+			// （src/routes/admin/+layout.server.ts）。一般ユーザーには必須化しない
+			// （登録障壁。doc/designs/12-threat-model.md T-AUTH-01 の受容理由）。
+			twoFactor({ issuer: 'emerald-wani' }),
+
+			// 流出済みパスワードを登録・変更時に拒否する（k-anonymity。平文は送らない）。
+			haveIBeenPwned(),
+
 			sveltekitCookies(getRequestEvent) // 必ず配列の最後に置く
 		]
 	});
